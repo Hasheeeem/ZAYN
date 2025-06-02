@@ -1,0 +1,182 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "admin",
+      "email": "admin@zayncompany.com",
+      "password_hash": "$2a$10$X7Lni.dDBnkGRfZ9MnUK0OQJ1i8JsFFv2j.UIoRlqH9UGxPYw0VxG",
+      "phone": "+1234567890",
+      "role": "admin",
+      "status": "active",
+      "created_at": "2023-01-01T00:00:00Z",
+      "updated_at": "2023-01-01T00:00:00Z"
+    },
+    {
+      "id": 2,
+      "username": "salesperson1",
+      "email": "sales1@zayncompany.com",
+      "password_hash": "$2a$10$X7Lni.dDBnkGRfZ9MnUK0OQJ1i8JsFFv2j.UIoRlqH9UGxPYw0VxG",
+      "phone": "+1987654321",
+      "role": "sales",
+      "status": "active",
+      "created_at": "2023-01-02T00:00:00Z",
+      "updated_at": "2023-01-02T00:00:00Z"
+    },
+    {
+      "id": 3,
+      "username": "salesperson2",
+      "email": "sales2@zayncompany.com",
+      "password_hash": "$2a$10$X7Lni.dDBnkGRfZ9MnUK0OQJ1i8JsFFv2j.UIoRlqH9UGxPYw0VxG",
+      "phone": "+1567890123",
+      "role": "sales",
+      "status": "active",
+      "created_at": "2023-01-03T00:00:00Z",
+      "updated_at": "2023-01-03T00:00:00Z"
+    }
+  ],
+  "opportunities": [
+    {
+      "id": 1,
+      "domain": "example.com",
+      "customer_name": "John Smith",
+      "customer_email": "john@example.com",
+      "customer_phone": "+1122334455",
+      "price": 1250.00,
+      "clicks": 124,
+      "date_created": "2023-04-15",
+      "last_update": "2023-04-20T14:30:00Z",
+      "status": "New",
+      "product": "Premium Hosting",
+      "brand": "HostMaster",
+      "source": "Website",
+      "assigned_user": 2,
+      "notes": "Interested in yearly package",
+      "created_at": "2023-04-15T10:00:00Z",
+      "updated_at": "2023-04-20T14:30:00Z"
+    },
+    {
+      "id": 2,
+      "domain": "store.example.org",
+      "customer_name": "Sarah Johnson",
+      "customer_email": "sarah@store.example.org",
+      "customer_phone": "+1233445566",
+      "price": 850.00,
+      "clicks": 85,
+      "date_created": "2023-04-16",
+      "last_update": "2023-04-19T09:15:00Z",
+      "status": "Expiring",
+      "product": "E-commerce Solution",
+      "brand": "ShopWave",
+      "source": "Referral",
+      "assigned_user": 2,
+      "notes": "Contract expires next month",
+      "created_at": "2023-04-16T11:30:00Z",
+      "updated_at": "2023-04-19T09:15:00Z"
+    },
+    {
+      "id": 3,
+      "domain": "tech-blog.net",
+      "customer_name": "Michael Brown",
+      "customer_email": "michael@tech-blog.net",
+      "customer_phone": "+1344556677",
+      "price": 1750.00,
+      "clicks": 203,
+      "date_created": "2023-04-14",
+      "last_update": "2023-04-21T16:45:00Z",
+      "status": "Registered",
+      "product": "Content Management",
+      "brand": "ContentPro",
+      "source": "Email Campaign",
+      "assigned_user": 3,
+      "notes": "Successfully onboarded",
+      "created_at": "2023-04-14T09:20:00Z",
+      "updated_at": "2023-04-21T16:45:00Z"
+    },
+    {
+      "id": 4,
+      "domain": "fitness-coach.com",
+      "customer_name": "Emily Davis",
+      "customer_email": "emily@fitness-coach.com",
+      "customer_phone": "+1455667788",
+      "price": 950.00,
+      "clicks": 112,
+      "date_created": "2023-04-17",
+      "last_update": "2023-04-18T13:10:00Z",
+      "status": "Flagged",
+      "product": "Landing Page Builder",
+      "brand": "PageCraft",
+      "source": "Trade Show",
+      "assigned_user": 3,
+      "notes": "Payment issues to resolve",
+      "created_at": "2023-04-17T14:15:00Z",
+      "updated_at": "2023-04-18T13:10:00Z"
+    },
+    {
+      "id": 5,
+      "domain": "pet-supplies.org",
+      "customer_name": "Robert Wilson",
+      "customer_email": "robert@pet-supplies.org",
+      "customer_phone": "+1566778899",
+      "price": 1100.00,
+      "clicks": 95,
+      "date_created": "2023-04-13",
+      "last_update": "2023-04-22T10:30:00Z",
+      "status": "Expired",
+      "product": "E-commerce Solution",
+      "brand": "ShopWave",
+      "source": "Google Ads",
+      "assigned_user": 2,
+      "notes": "Contract expired without renewal",
+      "created_at": "2023-04-13T15:40:00Z",
+      "updated_at": "2023-04-22T10:30:00Z"
+    }
+  ],
+  "dashboard": {
+    "totalLeads": 124,
+    "convertedLeads": 57,
+    "activeSalesUsers": 5,
+    "monthlyConversionRate": 46,
+    "leadsBySource": [
+      { "source": "Website", "count": 42 },
+      { "source": "Referral", "count": 28 },
+      { "source": "Email Campaign", "count": 19 },
+      { "source": "Trade Show", "count": 15 },
+      { "source": "Google Ads", "count": 20 }
+    ],
+    "monthlyLeadTrend": [
+      { "month": "Jan", "leads": 15, "conversions": 7 },
+      { "month": "Feb", "leads": 18, "conversions": 8 },
+      { "month": "Mar", "leads": 22, "conversions": 10 },
+      { "month": "Apr", "leads": 30, "conversions": 14 },
+      { "month": "May", "leads": 25, "conversions": 12 },
+      { "month": "Jun", "leads": 14, "conversions": 6 }
+    ],
+    "recentActivity": [
+      { "id": 1, "type": "New Lead", "description": "New lead 'Alex Thompson' added", "timestamp": "2023-06-15T09:30:00Z" },
+      { "id": 2, "type": "Conversion", "description": "Lead 'Tech Solutions Inc.' converted", "timestamp": "2023-06-14T14:45:00Z" },
+      { "id": 3, "type": "User Activity", "description": "User 'salesperson1' assigned 3 new leads", "timestamp": "2023-06-14T11:20:00Z" },
+      { "id": 4, "type": "New Lead", "description": "New lead 'Fitness Central' added", "timestamp": "2023-06-13T16:15:00Z" },
+      { "id": 5, "type": "Conversion", "description": "Lead 'Gourmet Catering' converted", "timestamp": "2023-06-12T10:05:00Z" }
+    ]
+  },
+  "salesDashboard": {
+    "assignedLeads": 18,
+    "convertedLeads": 8,
+    "conversionRate": 44,
+    "revenueGenerated": 9500,
+    "targetRevenue": 12000,
+    "recentOpportunities": [
+      { "id": 6, "name": "Alex Thompson", "product": "Content Management", "status": "New", "value": 1300 },
+      { "id": 7, "name": "Digital Marketing Pro", "product": "SEO Package", "status": "Contacted", "value": 950 },
+      { "id": 8, "name": "Wellness Center", "product": "Landing Page Builder", "status": "Qualified", "value": 1200 }
+    ],
+    "monthlyPerformance": [
+      { "month": "Jan", "actual": 3200, "target": 4000 },
+      { "month": "Feb", "actual": 3800, "target": 4000 },
+      { "month": "Mar", "actual": 4200, "target": 4000 },
+      { "month": "Apr", "actual": 4500, "target": 4500 },
+      { "month": "May", "actual": 4100, "target": 4500 },
+      { "month": "Jun", "actual": 2700, "target": 4500 }
+    ]
+  }
+}
