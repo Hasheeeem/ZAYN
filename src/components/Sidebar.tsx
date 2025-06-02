@@ -6,8 +6,8 @@ import {
   Users, 
   BarChart3, 
   LogOut, 
-  ChevronLeft, 
-  Menu
+  ChevronLeft,
+  UserCog
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, toggleMobileSidebar }) 
   const navItems = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: <LayoutDashboard size={20} /> },
     { name: 'Leads', path: '/admin/leads', icon: <Users size={20} /> },
+    { name: 'People', path: '/admin/people', icon: <UserCog size={20} /> },
     { name: 'Reports', path: '/admin/reports', icon: <BarChart3 size={20} /> },
   ];
 
@@ -113,4 +114,4 @@ const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, toggleMobileSidebar }) 
   );
 };
 
-export default Sidebar;
+export default Sidebar
