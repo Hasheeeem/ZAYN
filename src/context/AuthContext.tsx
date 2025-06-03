@@ -17,19 +17,7 @@ export const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [authState, setAuthState] = useState<AuthState>({
-    isAuthenticated: true, // Set to true for demo purposes
-    user: {
-      id: 1,
-      name: 'Admin User',
-      email: 'admin@lead.com',
-      role: 'admin',
-      status: 'active',
-      lastLogin: 'Jun 03, 2025'
-    },
-    loading: false,
-    error: null
-  });
+  const [authState, setAuthState] = useState<AuthState>(defaultAuthState);
 
   const login = async (email: string, password: string) => {
     setAuthState(prev => ({ ...prev, loading: true, error: null }));

@@ -3,7 +3,6 @@ import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import Dashboard from '../pages/Dashboard';
 import Leads from '../pages/Leads';
-import Opportunities from '../pages/Opportunities';
 import People from '../pages/People';
 import Reports from '../pages/Reports';
 
@@ -17,8 +16,6 @@ const AdminLayout: React.FC = () => {
         return <Dashboard />;
       case 'leads':
         return <Leads />;
-      case 'opportunities':
-        return <Opportunities />;
       case 'management':
         return <People />;
       case 'reports':
@@ -33,9 +30,7 @@ const AdminLayout: React.FC = () => {
       case 'dashboard':
         return 'Dashboard';
       case 'leads':
-        return 'Leads Management';
-      case 'opportunities':
-        return 'Opportunities';
+        return 'Lead Management';
       case 'management':
         return 'User Management';
       case 'reports':
@@ -49,20 +44,22 @@ const AdminLayout: React.FC = () => {
     <div className="flex min-h-screen bg-gradient-to-br from-indigo-500 to-purple-600">
       <Sidebar activePage={activePage} onNavigate={setActivePage} />
       
-      <div className="flex-1 bg-white/95 backdrop-blur-sm rounded-tl-3xl m-5 mr-5 shadow-xl overflow-hidden">
-        <header className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-5 flex justify-between items-center shadow-md">
-          <h1 className="text-2xl font-light">{getPageTitle()}</h1>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center font-semibold">
-              {authState.user?.name.charAt(0)}
+      <div className="flex-1 ml-[250px]">
+        <div className="bg-white/95 backdrop-blur-sm rounded-tl-3xl m-5 shadow-xl overflow-hidden">
+          <header className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white p-5 flex justify-between items-center shadow-md">
+            <h1 className="text-2xl font-light">{getPageTitle()}</h1>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center font-semibold">
+                {authState.user?.name.charAt(0)}
+              </div>
+              <span>{authState.user?.email}</span>
             </div>
-            <span>{authState.user?.email}</span>
-          </div>
-        </header>
-        
-        <main className="p-8 h-[calc(100vh-5rem)] overflow-y-auto">
-          {getPageComponent()}
-        </main>
+          </header>
+          
+          <main className="p-8 min-h-[calc(100vh-7rem)] overflow-y-auto">
+            {getPageComponent()}
+          </main>
+        </div>
       </div>
     </div>
   );
