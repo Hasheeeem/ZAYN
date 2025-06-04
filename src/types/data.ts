@@ -1,28 +1,20 @@
 export interface Lead {
-  id: number;
-  name: string;
+  id: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
   status: 'new' | 'contacted' | 'qualified' | 'lost';
-  source: 'website' | 'referral' | 'social' | 'email';
-  date: string;
+  source?: 'referral' | 'ads' | 'website' | 'other';
   notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  assignedTo?: string;
 }
 
-export interface Opportunity {
-  id: number;
-  domain: string;
-  price: number;
-  clicks: number;
-  update: string;
-  status: 'registered' | 'expiring' | 'expired' | 'flagged';
-  description?: string;
-}
-
-export interface DashboardStat {
+export interface User {
   id: string;
-  title: string;
-  value: string | number;
-  icon: string;
-  color: string;
+  email: string;
+  role: 'admin' | 'sales';
+  isActive: boolean;
 }
