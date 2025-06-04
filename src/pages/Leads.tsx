@@ -11,111 +11,66 @@ const Leads: React.FC = () => {
   const { leads, addLead, filterLeads } = useData();
   const { showNotification } = useNotification();
 
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [isOpportunityModalOpen, setIsOpportunityModalOpen] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [status, setStatus] = useState<'new' | 'contacted' | 'qualified' | 'lost'>('new');
-  const [source, setSource] = useState<'website' | 'referral' | 'social' | 'email'>('website');
-  const [notes, setNotes] = useState('');
-
-  // Opportunity form states
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [domain, setDomain] = useState('');
   const [price, setPrice] = useState('');
   const [clicks, setClicks] = useState('');
-  const [opportunityStatus, setOpportunityStatus] = useState('registered');
-  const [description, setDescription] = useState('');
-
+  const [status, setStatus] = useState<'registered' | 'expiring' | 'expired' | 'flagged'>('registered');
+  
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
 
-  const filteredLeads = filterLeads(searchTerm, statusFilter, sourceFilter);
+  const filteredLeads = filterLeads(searchTerm, statusFilter);
 
   const handleAddLead = () => {
-    if (!firstName || !lastName || !email || !phone) {
-      showNotification('Please fill in all required fields', 'error');
-      return;
-    }
-
-    addLead({
-      name: `${firstName} ${lastName}`,
-      email,
-      phone,
-      status,
-      source,
-      notes
-    });
-
-    showNotification('Lead added successfully', 'success');
-    setIsLeadModalOpen(false);
-    resetLeadForm();
-  };
-
-  const handleAddOpportunity = () => {
     if (!domain || !price || !clicks) {
       showNotification('Please fill in all required fields', 'error');
       return;
     }
 
-    // Add opportunity logic here
-    showNotification('Opportunity added successfully', 'success');
-    setIsOpportunityModalOpen(false);
-    resetOpportunityForm();
+    addLead({
+      domain,
+      price: Number(price),
+      clicks: Number(clicks),
+      update: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      status
+    });
+
+    showNotification('Lead added successfully', 'success');
+    setIsModalOpen(false);
+    resetForm();
   };
 
-  const resetLeadForm = () => {
-    setFirstName('');
-    setLastName('');
-    setEmail('');
-    setPhone('');
-    setStatus('new');
-    setSource('website');
-    setNotes('');
-  };
-
-  const resetOpportunityForm = () => {
+  const resetForm = () => {
     setDomain('');
     setPrice('');
     setClicks('');
-    setOpportunityStatus('registered');
-    setDescription('');
+    setStatus('registered');
   };
 
   const columns = [
-    { key: 'name', label: 'Name' },
-    { key: 'email', label: 'Email' },
-    { key: 'phone', label: 'Phone' },
-    { key: 'status', label: 'Status' },
-    { key: 'source', label: 'Source' },
-    { key: 'date', label: 'Date Added' }
+    { key: 'domain', label: 'Domain' },
+    { key: 'price', label: 'Price', render: (value: number) => `$${value}` },
+    { key: 'clicks', label: 'Clicks' },
+    { key: 'update', label: 'Update' },
+    { key: 'status', label: 'Status' }
   ];
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
+    <div className="max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h2 className="text-2xl font-semibold text-gray-800">Lead Management</h2>
-        <div className="flex gap-4">
-          <ActionButton
-            label="Add New Lead"
-            icon={<Plus size={18} />}
-            onClick={() => setIsLeadModalOpen(true)}
-            variant="primary"
-          />
-          <ActionButton
-            label="Add Opportunity"
-            icon={<Plus size={18} />}
-            onClick={() => setIsOpportunityModalOpen(true)}
-            variant="success"
-          />
-        </div>
+        <ActionButton
+          label="New Opportunity"
+          icon={<Plus size={18} />}
+          onClick={() => setIsModalOpen(true)}
+          variant="primary"
+        />
       </div>
 
-      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <SearchFilter
-          searchPlaceholder="Search leads..."
+          searchPlaceholder="Search domains..."
           onSearch={setSearchTerm}
           filters={[
             {
@@ -123,160 +78,42 @@ const Leads: React.FC = () => {
               value: statusFilter,
               onChange: setStatusFilter,
               options: [
-                { value: 'new', label: 'New' },
-                { value: 'contacted', label: 'Contacted' },
-                { value: 'qualified', label: 'Qualified' },
-                { value: 'lost', label: 'Lost' }
-              ]
-            },
-            {
-              label: 'All Sources',
-              value: sourceFilter,
-              onChange: setSourceFilter,
-              options: [
-                { value: 'website', label: 'Website' },
-                { value: 'referral', label: 'Referral' },
-                { value: 'social', label: 'Social Media' },
-                { value: 'email', label: 'Email Campaign' }
+                { value: 'registered', label: 'Registered' },
+                { value: 'expiring', label: 'Expiring' },
+                { value: 'expired', label: 'Expired' },
+                { value: 'flagged', label: 'Flagged' }
               ]
             }
           ]}
         />
       </div>
 
-      <DataTable
-        columns={columns}
-        data={filteredLeads}
-        actions={{
-          edit: (id) => showNotification('Edit lead feature coming soon!', 'info'),
-          view: (id) => showNotification('View lead feature coming soon!', 'info')
-        }}
-        statusType="lead"
-      />
+      <div className="overflow-x-auto">
+        <DataTable
+          columns={columns}
+          data={filteredLeads}
+          actions={{
+            edit: (id) => showNotification('Edit lead feature coming soon!', 'info'),
+            view: (id) => showNotification('View lead feature coming soon!', 'info')
+          }}
+          statusType="lead"
+        />
+      </div>
 
-      {/* Lead Modal */}
       <Modal
-        isOpen={isLeadModalOpen}
-        onClose={() => setIsLeadModalOpen(false)}
-        title="Add New Lead"
-        footer={
-          <>
-            <ActionButton
-              label="Cancel"
-              onClick={() => setIsLeadModalOpen(false)}
-              variant="secondary"
-            />
-            <ActionButton
-              label="Add Lead"
-              onClick={handleAddLead}
-              variant="success"
-            />
-          </>
-        }
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            required
-          />
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            required
-          />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            >
-              <option value="new">New</option>
-              <option value="contacted">Contacted</option>
-              <option value="qualified">Qualified</option>
-              <option value="lost">Lost</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
-            <select
-              value={source}
-              onChange={(e) => setSource(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            >
-              <option value="website">Website</option>
-              <option value="referral">Referral</option>
-              <option value="social">Social Media</option>
-              <option value="email">Email Campaign</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            rows={3}
-            placeholder="Optional notes about the lead..."
-          />
-        </div>
-      </Modal>
-
-      {/* Opportunity Modal */}
-      <Modal
-        isOpen={isOpportunityModalOpen}
-        onClose={() => setIsOpportunityModalOpen(false)}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         title="Add New Opportunity"
         footer={
           <>
             <ActionButton
               label="Cancel"
-              onClick={() => setIsOpportunityModalOpen(false)}
+              onClick={() => setIsModalOpen(false)}
               variant="secondary"
             />
             <ActionButton
               label="Add Opportunity"
-              onClick={handleAddOpportunity}
+              onClick={handleAddLead}
               variant="success"
             />
           </>
@@ -319,8 +156,8 @@ const Leads: React.FC = () => {
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
           <select
-            value={opportunityStatus}
-            onChange={(e) => setOpportunityStatus(e.target.value)}
+            value={status}
+            onChange={(e) => setStatus(e.target.value as any)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
             required
           >
@@ -329,17 +166,6 @@ const Leads: React.FC = () => {
             <option value="expired">Expired</option>
             <option value="flagged">Flagged</option>
           </select>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            rows={3}
-            placeholder="Optional description..."
-          />
         </div>
       </Modal>
     </div>

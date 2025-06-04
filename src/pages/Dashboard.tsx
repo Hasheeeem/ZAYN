@@ -4,20 +4,20 @@ import { useData } from '../context/DataContext';
 import { Users, Briefcase, UserCheck, BarChart4 } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
-  const { leads, opportunities } = useData();
+  const { leads } = useData();
   
   const dashboardStats = [
     {
       id: 'leads',
       title: 'Total Leads',
-      value: leads.length,
+      value: leads?.length || 0,
       icon: <Users size={24} />,
       color: 'blue'
     },
     {
       id: 'opportunities',
       title: 'Opportunities',
-      value: opportunities.length,
+      value: leads?.length || 0,
       icon: <Briefcase size={24} />,
       color: 'green'
     },
