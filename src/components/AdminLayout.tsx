@@ -6,7 +6,7 @@ import Dashboard from '../pages/Dashboard';
 import Leads from '../pages/Leads';
 import UserSettings from '../pages/UserSettings';
 import Reports from '../pages/Reports';
-import Settings from '../pages/Settings';
+import Management from '../pages/Management';
 
 const AdminLayout: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');

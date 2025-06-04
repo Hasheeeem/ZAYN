@@ -95,7 +95,7 @@ const Settings: React.FC = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-semibold text-gray-800">Admin Settings</h2>
+        <h2 className="text-2xl font-semibold text-gray-800">Management</h2>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -380,4 +380,4 @@ const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
   );
 };
 
-export default Settings;
+export default Management;
