@@ -1,4 +1,5 @@
 import React from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import AdminLayout from './components/AdminLayout';
 import AdminLogin from './components/AdminLogin';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -17,13 +18,15 @@ const AppContent: React.FC = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <DataProvider>
-        <NotificationProvider>
-          <AppContent />
-        </NotificationProvider>
-      </DataProvider>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <DataProvider>
+          <NotificationProvider>
+            <AppContent />
+          </NotificationProvider>
+        </DataProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

@@ -1,11 +1,18 @@
 export interface Lead {
   id: number | string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
   domain: string;
   price: number;
   clicks: number;
   update: string;
-  status: 'registered' | 'expiring' | 'expired' | 'flagged';
-  owner?: string;
+  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
+  source: 'website' | 'referral' | 'call' | 'other';
+  assignedTo?: string;
+  notes?: string;
+  createdAt: string;
 }
 
 export interface User {
@@ -15,6 +22,10 @@ export interface User {
   role: 'admin' | 'manager' | 'user';
   status: 'active' | 'inactive';
   lastLogin: string;
+  performance?: {
+    leadsConverted: number;
+    conversionRate: number;
+  };
 }
 
 export interface Brand {

@@ -1,87 +1,211 @@
 import React, { useState } from 'react';
+import { Plus, Trash2, UserPlus } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import ActionButton from '../components/ActionButton';
 import Modal from '../components/Modal';
 import SearchFilter from '../components/SearchFilter';
+import LeadForm from '../components/LeadForm';
 import { useData } from '../context/DataContext';
 import { useNotification } from '../context/NotificationContext';
-import { Plus } from 'lucide-react';
+import { Lead } from '../types/data';
+
+const ITEMS_PER_PAGE = 10;
 
 const Leads: React.FC = () => {
-  const { leads, addLead, filterLeads } = useData();
+  const { leads, addLead, updateLead, deleteLead, salespeople } = useData();
   const { showNotification } = useNotification();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [domain, setDomain] = useState('');
-  const [price, setPrice] = useState('');
-  const [clicks, setClicks] = useState('');
-  const [status, setStatus] = useState<'registered' | 'expiring' | 'expired' | 'flagged'>('registered');
-  
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLeads, setSelectedLeads] = useState<Set<number | string>>(new Set());
 
-  const filteredLeads = filterLeads(searchTerm, statusFilter);
+  const filteredLeads = leads.filter(lead => {
+    const matchesSearch = searchTerm === '' || 
+      lead.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === '' || lead.status === statusFilter;
+    const matchesSource = sourceFilter === '' || lead.source === sourceFilter;
+    
+    return matchesSearch && matchesStatus && matchesSource;
+  });
 
-  const handleAddLead = () => {
-    if (!domain || !price || !clicks) {
-      showNotification('Please fill in all required fields', 'error');
-      return;
-    }
+  const paginatedLeads = filteredLeads.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
-    addLead({
-      domain,
-      price: Number(price),
-      clicks: Number(clicks),
-      update: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      status
-    });
-
+  const handleAddLead = (lead: Lead) => {
+    addLead(lead);
     showNotification('Lead added successfully', 'success');
-    setIsModalOpen(false);
-    resetForm();
+    setIsAddModalOpen(false);
   };
 
-  const resetForm = () => {
-    setDomain('');
-    setPrice('');
-    setClicks('');
-    setStatus('registered');
+  const handleUpdateLead = (lead: Lead) => {
+    updateLead(lead);
+    showNotification('Lead updated successfully', 'success');
+    setIsViewModalOpen(false);
+  };
+
+  const handleDeleteLead = () => {
+    if (selectedLead) {
+      deleteLead(selectedLead.id);
+      showNotification('Lead deleted successfully', 'success');
+      setIsDeleteModalOpen(false);
+      setSelectedLead(null);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    selectedLeads.forEach(id => deleteLead(id));
+    showNotification(`${selectedLeads.size} leads deleted`, 'success');
+    setSelectedLeads(new Set());
+  };
+
+  const handleBulkAssign = (salesPersonId: string) => {
+    selectedLeads.forEach(id => {
+      const lead = leads.find(l => l.id === id);
+      if (lead) {
+        updateLead({ ...lead, assignedTo: salesPersonId });
+      }
+    });
+    showNotification(`${selectedLeads.size} leads assigned`, 'success');
+    setSelectedLeads(new Set());
   };
 
   const columns = [
-    { key: 'domain', label: 'Domain' },
+    { 
+      key: 'select',
+      label: '',
+      render: (value: any, item: Lead) => (
+        <input
+          type="checkbox"
+          checked={selectedLeads.has(item.id)}
+          onChange={(e) => {
+            const newSelected = new Set(selectedLeads);
+            if (e.target.checked) {
+              newSelected.add(item.id);
+            } else {
+              newSelected.delete(item.id);
+            }
+            setSelectedLeads(newSelected);
+          }}
+          className="rounded text-indigo-600"
+        />
+      )
+    },
+    { 
+      key: 'domain',
+      label: 'Domain',
+      render: (value: string, item: Lead) => (
+        <div>
+          <div className="font-medium">{value}</div>
+          <div className="text-sm text-gray-500">{item.firstName} {item.lastName}</div>
+        </div>
+      )
+    },
     { key: 'price', label: 'Price', render: (value: number) => `$${value}` },
-    { key: 'clicks', label: 'Clicks' },
-    { key: 'update', label: 'Update' },
-    { key: 'status', label: 'Status' }
+    { key: 'source', label: 'Source' },
+    { 
+      key: 'status',
+      label: 'Status',
+      render: (value: string) => {
+        const statusSteps = ['new', 'contacted', 'qualified', 'converted', 'lost'];
+        const currentIndex = statusSteps.indexOf(value);
+        
+        return (
+          <div className="flex items-center gap-1">
+            {statusSteps.map((step, index) => (
+              <React.Fragment key={step}>
+                <div
+                  className={`h-2 w-2 rounded-full ${
+                    index <= currentIndex
+                      ? 'bg-indigo-600'
+                      : 'bg-gray-200'
+                  }`}
+                />
+                {index < statusSteps.length - 1 && (
+                  <div className="h-0.5 w-3 bg-gray-200" />
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        );
+      }
+    },
+    { 
+      key: 'assignedTo',
+      label: 'Assigned To',
+      render: (value: string) => {
+        const person = salespeople?.find(p => p.id.toString() === value);
+        return person ? person.name : 'Unassigned';
+      }
+    }
   ];
 
   return (
     <div className="max-w-full overflow-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h2 className="text-2xl font-semibold text-gray-800">Lead Management</h2>
-        <ActionButton
-          label="New Opportunity"
-          icon={<Plus size={18} />}
-          onClick={() => setIsModalOpen(true)}
-          variant="primary"
-        />
+        <div className="flex gap-2">
+          {selectedLeads.size > 0 && (
+            <>
+              <ActionButton
+                label={`Delete (${selectedLeads.size})`}
+                icon={<Trash2 size={18} />}
+                onClick={() => setIsDeleteModalOpen(true)}
+                variant="danger"
+              />
+              <ActionButton
+                label={`Assign (${selectedLeads.size})`}
+                icon={<UserPlus size={18} />}
+                onClick={() => {/* Show assign modal */}}
+                variant="secondary"
+              />
+            </>
+          )}
+          <ActionButton
+            label="New Lead"
+            icon={<Plus size={18} />}
+            onClick={() => setIsAddModalOpen(true)}
+            variant="primary"
+          />
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 mb-6">
         <SearchFilter
-          searchPlaceholder="Search domains..."
+          searchPlaceholder="Search leads..."
           onSearch={setSearchTerm}
           filters={[
             {
-              label: 'All Status',
+              label: 'Status',
               value: statusFilter,
               onChange: setStatusFilter,
               options: [
-                { value: 'registered', label: 'Registered' },
-                { value: 'expiring', label: 'Expiring' },
-                { value: 'expired', label: 'Expired' },
-                { value: 'flagged', label: 'Flagged' }
+                { value: 'new', label: 'New' },
+                { value: 'contacted', label: 'Contacted' },
+                { value: 'qualified', label: 'Qualified' },
+                { value: 'converted', label: 'Converted' },
+                { value: 'lost', label: 'Lost' }
+              ]
+            },
+            {
+              label: 'Source',
+              value: sourceFilter,
+              onChange: setSourceFilter,
+              options: [
+                { value: 'website', label: 'Website' },
+                { value: 'referral', label: 'Referral' },
+                { value: 'call', label: 'Call' },
+                { value: 'other', label: 'Other' }
               ]
             }
           ]}
@@ -91,81 +215,88 @@ const Leads: React.FC = () => {
       <div className="overflow-x-auto">
         <DataTable
           columns={columns}
-          data={filteredLeads}
+          data={paginatedLeads}
           actions={{
-            edit: (id) => showNotification('Edit lead feature coming soon!', 'info'),
-            view: (id) => showNotification('View lead feature coming soon!', 'info')
+            edit: (id) => {
+              const lead = leads.find(l => l.id === id);
+              if (lead) {
+                setSelectedLead(lead);
+                setIsViewModalOpen(true);
+              }
+            },
+            delete: (id) => {
+              const lead = leads.find(l => l.id === id);
+              if (lead) {
+                setSelectedLead(lead);
+                setIsDeleteModalOpen(true);
+              }
+            }
           }}
           statusType="lead"
         />
+        
+        <div className="mt-4 flex justify-between items-center">
+          <div className="text-sm text-gray-500">
+            Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredLeads.length)} of {filteredLeads.length} leads
+          </div>
+          <div className="flex gap-2">
+            <ActionButton
+              label="Previous"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              variant="secondary"
+              disabled={currentPage === 1}
+            />
+            <ActionButton
+              label="Next"
+              onClick={() => setCurrentPage(p => p + 1)}
+              variant="secondary"
+              disabled={currentPage * ITEMS_PER_PAGE >= filteredLeads.length}
+            />
+          </div>
+        </div>
       </div>
 
       <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add New Opportunity"
-        footer={
-          <>
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Add New Lead"
+      >
+        <LeadForm onSave={handleAddLead} onCancel={() => setIsAddModalOpen(false)} />
+      </Modal>
+
+      <Modal
+        isOpen={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        title="Lead Details"
+      >
+        {selectedLead && (
+          <LeadForm
+            initialData={selectedLead}
+            onSave={handleUpdateLead}
+            onCancel={() => setIsViewModalOpen(false)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        title="Confirm Delete"
+      >
+        <div className="p-6">
+          <p className="mb-4">Are you sure you want to delete {selectedLeads.size > 0 ? `${selectedLeads.size} leads` : 'this lead'}?</p>
+          <div className="flex justify-end gap-2">
             <ActionButton
               label="Cancel"
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => setIsDeleteModalOpen(false)}
               variant="secondary"
             />
             <ActionButton
-              label="Add Opportunity"
-              onClick={handleAddLead}
-              variant="success"
-            />
-          </>
-        }
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Domain Name</label>
-            <input
-              type="text"
-              value={domain}
-              onChange={(e) => setDomain(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
+              label="Delete"
+              onClick={selectedLeads.size > 0 ? handleBulkDelete : handleDeleteLead}
+              variant="danger"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-            <input
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Expected Clicks</label>
-          <input
-            type="number"
-            value={clicks}
-            onChange={(e) => setClicks(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            required
-          />
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as any)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            required
-          >
-            <option value="registered">Registered</option>
-            <option value="expiring">Expiring</option>
-            <option value="expired">Expired</option>
-            <option value="flagged">Flagged</option>
-          </select>
         </div>
       </Modal>
     </div>
