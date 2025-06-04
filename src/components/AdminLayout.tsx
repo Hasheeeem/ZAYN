@@ -4,7 +4,7 @@ import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import Dashboard from '../pages/Dashboard';
 import Leads from '../pages/Leads';
-import Management from '../pages/Management';
+import UserSettings from '../pages/UserSettings';
 import Reports from '../pages/Reports';
 import Settings from '../pages/Settings';
 
@@ -24,8 +24,8 @@ const AdminLayout: React.FC = () => {
         return 'Dashboard';
       case 'leads':
         return 'Lead Management';
-      case 'management':
-        return 'Team Management';
+      case 'usersettings':
+        return 'User Settings';
       case 'reports':
         return 'Reports & Analytics';
       case 'settings':
@@ -55,7 +55,7 @@ const AdminLayout: React.FC = () => {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
-              <Route path="/management" element={<Management />} />
+              <Route path="/usersettings" element={<UserSettings />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>

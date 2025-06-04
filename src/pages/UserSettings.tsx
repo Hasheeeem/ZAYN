@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, UserPlus, Users } from 'lucide-react';
+import { UserPlus, Users } from 'lucide-react';
 import ActionButton from '../components/ActionButton';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
@@ -13,7 +13,7 @@ interface InviteFormData {
   role: 'admin' | 'sales' | 'viewer';
 }
 
-const Management: React.FC = () => {
+const UserSettings: React.FC = () => {
   const { managementUsers } = useData();
   const { showNotification } = useNotification();
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -97,7 +97,7 @@ const Management: React.FC = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800">Team Management</h2>
+        <h2 className="text-2xl font-semibold text-gray-800">User Settings</h2>
         <ActionButton
           label="Invite User"
           icon={<UserPlus size={18} />}
@@ -108,7 +108,7 @@ const Management: React.FC = () => {
 
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <SearchFilter
-          searchPlaceholder="Search team members..."
+          searchPlaceholder="Search users..."
           onSearch={setSearchTerm}
           filters={[
             {
@@ -149,7 +149,7 @@ const Management: React.FC = () => {
       <Modal
         isOpen={isInviteModalOpen}
         onClose={() => setIsInviteModalOpen(false)}
-        title="Invite Team Member"
+        title="Invite User"
       >
         <div className="p-6">
           <div className="space-y-4">
@@ -198,7 +198,7 @@ const Management: React.FC = () => {
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        title="Edit Team Member"
+        title="Edit User"
       >
         {selectedUser && (
           <div className="p-6">
@@ -245,4 +245,4 @@ const Management: React.FC = () => {
   );
 };
 
-export default Management;
+export default UserSettings;

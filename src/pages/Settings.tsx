@@ -5,7 +5,6 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import SearchFilter from '../components/SearchFilter';
 import { useNotification } from '../context/NotificationContext';
-import { Brand, Product, Location, LeadStatus, LeadSource, LeadOwner } from '../types/data';
 
 const SETTINGS_SECTIONS = [
   { id: 'brands', name: 'Brand Settings', icon: <Settings2 size={20} /> },
@@ -88,7 +87,6 @@ const Settings: React.FC = () => {
             onCancel={() => setIsModalOpen(false)}
           />
         );
-      // Add similar cases for other sections
       default:
         return null;
     }
@@ -132,7 +130,7 @@ const Settings: React.FC = () => {
   );
 };
 
-// Individual section components
+// Settings section components
 const BrandSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
   const columns = [
     { key: 'name', label: 'Name' },
@@ -158,7 +156,6 @@ const BrandSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
   );
 };
 
-// Form components
 const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState(initialData || {
     name: '',
@@ -205,6 +202,182 @@ const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   );
 };
 
-// Add similar components for other sections (ProductSettings, LocationSettings, etc.)
+const ProductSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
+  const columns = [
+    { key: 'name', label: 'Name' },
+    { key: 'brand', label: 'Brand' },
+    { key: 'price', label: 'Price' },
+    { key: 'status', label: 'Status' }
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Products</h3>
+        <ActionButton label="Add Product" onClick={onAdd} variant="primary" />
+      </div>
+      <DataTable
+        columns={columns}
+        data={[]}
+        actions={{
+          edit: onEdit,
+          delete: onDelete
+        }}
+      />
+    </div>
+  );
+};
+
+const ProductForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
+  const [form, setForm] = useState(initialData || {
+    name: '',
+    brand: '',
+    price: '',
+    status: 'active'
+  });
+
+  return (
+    <div className="space-y-4 p-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+        <input
+          type="text"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Brand</label>
+        <select
+          value={form.brand}
+          onChange={(e) => setForm({ ...form, brand: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="">Select Brand</option>
+          {/* Add brand options here */}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+        <input
+          type="number"
+          value={form.price}
+          onChange={(e) => setForm({ ...form, price: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <select
+          value={form.status}
+          onChange={(e) => setForm({ ...form, status: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+        >
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div className="flex justify-end gap-3 mt-6">
+        <ActionButton label="Cancel" onClick={onCancel} variant="secondary" />
+        <ActionButton label="Save" onClick={() => onSave(form)} variant="primary" />
+      </div>
+    </div>
+  );
+};
+
+const LocationSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Locations</h3>
+        <ActionButton label="Add Location" onClick={onAdd} variant="primary" />
+      </div>
+      <DataTable
+        columns={[
+          { key: 'name', label: 'Name' },
+          { key: 'address', label: 'Address' },
+          { key: 'city', label: 'City' },
+          { key: 'country', label: 'Country' },
+          { key: 'status', label: 'Status' }
+        ]}
+        data={[]}
+        actions={{
+          edit: onEdit,
+          delete: onDelete
+        }}
+      />
+    </div>
+  );
+};
+
+const StatusSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Lead Statuses</h3>
+        <ActionButton label="Add Status" onClick={onAdd} variant="primary" />
+      </div>
+      <DataTable
+        columns={[
+          { key: 'name', label: 'Name' },
+          { key: 'description', label: 'Description' },
+          { key: 'color', label: 'Color' }
+        ]}
+        data={[]}
+        actions={{
+          edit: onEdit,
+          delete: onDelete
+        }}
+      />
+    </div>
+  );
+};
+
+const SourceSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Lead Sources</h3>
+        <ActionButton label="Add Source" onClick={onAdd} variant="primary" />
+      </div>
+      <DataTable
+        columns={[
+          { key: 'name', label: 'Name' },
+          { key: 'description', label: 'Description' },
+          { key: 'status', label: 'Status' }
+        ]}
+        data={[]}
+        actions={{
+          edit: onEdit,
+          delete: onDelete
+        }}
+      />
+    </div>
+  );
+};
+
+const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete }) => {
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Lead Ownership Rules</h3>
+        <ActionButton label="Add Rule" onClick={onAdd} variant="primary" />
+      </div>
+      <DataTable
+        columns={[
+          { key: 'user', label: 'User' },
+          { key: 'leadCount', label: 'Lead Count' },
+          { key: 'performance', label: 'Performance' }
+        ]}
+        data={[]}
+        actions={{
+          edit: onEdit,
+          delete: onDelete
+        }}
+      />
+    </div>
+  );
+};
 
 export default Settings;
