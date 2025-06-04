@@ -5,13 +5,12 @@ import Modal from '../components/Modal';
 import SearchFilter from '../components/SearchFilter';
 import { useData } from '../context/DataContext';
 import { useNotification } from '../context/NotificationContext';
-import { Lead } from '../types/data';
 import { Plus } from 'lucide-react';
 
 const Leads: React.FC = () => {
   const { leads, addLead, filterLeads } = useData();
   const { showNotification } = useNotification();
-  
+
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [isOpportunityModalOpen, setIsOpportunityModalOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
@@ -21,35 +20,35 @@ const Leads: React.FC = () => {
   const [status, setStatus] = useState<'new' | 'contacted' | 'qualified' | 'lost'>('new');
   const [source, setSource] = useState<'website' | 'referral' | 'social' | 'email'>('website');
   const [notes, setNotes] = useState('');
-  
+
   // Opportunity form states
   const [domain, setDomain] = useState('');
   const [price, setPrice] = useState('');
   const [clicks, setClicks] = useState('');
   const [opportunityStatus, setOpportunityStatus] = useState('registered');
   const [description, setDescription] = useState('');
-  
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
-  
+
   const filteredLeads = filterLeads(searchTerm, statusFilter, sourceFilter);
-  
+
   const handleAddLead = () => {
     if (!firstName || !lastName || !email || !phone) {
       showNotification('Please fill in all required fields', 'error');
       return;
     }
-    
+
     addLead({
-      name: ${firstName} ${lastName},
+      name: `${firstName} ${lastName}`,
       email,
       phone,
       status,
       source,
       notes
     });
-    
+
     showNotification('Lead added successfully', 'success');
     setIsLeadModalOpen(false);
     resetLeadForm();
@@ -66,7 +65,7 @@ const Leads: React.FC = () => {
     setIsOpportunityModalOpen(false);
     resetOpportunityForm();
   };
-  
+
   const resetLeadForm = () => {
     setFirstName('');
     setLastName('');
@@ -84,7 +83,7 @@ const Leads: React.FC = () => {
     setOpportunityStatus('registered');
     setDescription('');
   };
-  
+
   const columns = [
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
@@ -93,30 +92,30 @@ const Leads: React.FC = () => {
     { key: 'source', label: 'Source' },
     { key: 'date', label: 'Date Added' }
   ];
-  
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-gray-800">Lead Management</h2>
         <div className="flex gap-4">
-          <ActionButton 
-            label="Add New Lead" 
+          <ActionButton
+            label="Add New Lead"
             icon={<Plus size={18} />}
-            onClick={() => setIsLeadModalOpen(true)} 
+            onClick={() => setIsLeadModalOpen(true)}
             variant="primary"
           />
-          <ActionButton 
-            label="Add Opportunity" 
+          <ActionButton
+            label="Add Opportunity"
             icon={<Plus size={18} />}
-            onClick={() => setIsOpportunityModalOpen(true)} 
+            onClick={() => setIsOpportunityModalOpen(true)}
             variant="success"
           />
         </div>
       </div>
-      
+
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-        <SearchFilter 
-          searchPlaceholder="Search leads..." 
+        <SearchFilter
+          searchPlaceholder="Search leads..."
           onSearch={setSearchTerm}
           filters={[
             {
@@ -144,32 +143,32 @@ const Leads: React.FC = () => {
           ]}
         />
       </div>
-      
-      <DataTable 
-        columns={columns} 
-        data={filteredLeads} 
+
+      <DataTable
+        columns={columns}
+        data={filteredLeads}
         actions={{
           edit: (id) => showNotification('Edit lead feature coming soon!', 'info'),
           view: (id) => showNotification('View lead feature coming soon!', 'info')
         }}
         statusType="lead"
       />
-      
+
       {/* Lead Modal */}
-      <Modal 
-        isOpen={isLeadModalOpen} 
+      <Modal
+        isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
         title="Add New Lead"
         footer={
           <>
-            <ActionButton 
-              label="Cancel" 
-              onClick={() => setIsLeadModalOpen(false)} 
+            <ActionButton
+              label="Cancel"
+              onClick={() => setIsLeadModalOpen(false)}
               variant="secondary"
             />
-            <ActionButton 
-              label="Add Lead" 
-              onClick={handleAddLead} 
+            <ActionButton
+              label="Add Lead"
+              onClick={handleAddLead}
               variant="success"
             />
           </>
@@ -197,7 +196,7 @@ const Leads: React.FC = () => {
             />
           </div>
         </div>
-        
+
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
           <input
@@ -208,7 +207,7 @@ const Leads: React.FC = () => {
             required
           />
         </div>
-        
+
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
           <input
@@ -219,7 +218,7 @@ const Leads: React.FC = () => {
             required
           />
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -250,7 +249,7 @@ const Leads: React.FC = () => {
             </select>
           </div>
         </div>
-        
+
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
           <textarea
