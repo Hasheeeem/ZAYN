@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import { format } from 'date-fns';
 import { Lead, Opportunity } from '../types/data';
 
 interface DataContextType {
@@ -12,11 +13,11 @@ interface DataContextType {
 }
 
 const initialLeads: Lead[] = [
-  { id: 1, name: 'John Smith', email: 'john.smith@email.com', phone: '+1 234 567 8900', status: 'new', source: 'website', date: 'Jun 01, 2025' },
-  { id: 2, name: 'Sarah Johnson', email: 'sarah.j@email.com', phone: '+1 234 567 8901', status: 'contacted', source: 'referral', date: 'May 30, 2025' },
-  { id: 3, name: 'Mike Wilson', email: 'mike.w@email.com', phone: '+1 234 567 8902', status: 'qualified', source: 'social', date: 'May 28, 2025' },
-  { id: 4, name: 'Emily Davis', email: 'emily.d@email.com', phone: '+1 234 567 8903', status: 'new', source: 'email', date: 'May 27, 2025' },
-  { id: 5, name: 'Alex Brown', email: 'alex.b@email.com', phone: '+1 234 567 8904', status: 'qualified', source: 'website', date: 'May 25, 2025' }
+  { id: 1, name: 'John Smith', email: 'john.smith@email.com', phone: '+1 234 567 8900', status: 'new', source: 'website', date: format(new Date('2025-06-01'), 'MMM dd, yyyy') },
+  { id: 2, name: 'Sarah Johnson', email: 'sarah.j@email.com', phone: '+1 234 567 8901', status: 'contacted', source: 'referral', date: format(new Date('2025-05-30'), 'MMM dd, yyyy') },
+  { id: 3, name: 'Mike Wilson', email: 'mike.w@email.com', phone: '+1 234 567 8902', status: 'qualified', source: 'social', date: format(new Date('2025-05-28'), 'MMM dd, yyyy') },
+  { id: 4, name: 'Emily Davis', email: 'emily.d@email.com', phone: '+1 234 567 8903', status: 'new', source: 'email', date: format(new Date('2025-05-27'), 'MMM dd, yyyy') },
+  { id: 5, name: 'Alex Brown', email: 'alex.b@email.com', phone: '+1 234 567 8904', status: 'qualified', source: 'website', date: format(new Date('2025-05-25'), 'MMM dd, yyyy') }
 ];
 
 const initialOpportunities: Opportunity[] = [
@@ -28,10 +29,10 @@ const initialOpportunities: Opportunity[] = [
 ];
 
 const initialManagementUsers = [
-  { id: 1, name: 'Admin User', email: 'admin@lead.com', role: 'admin', status: 'active', lastLogin: 'Jun 03, 2025' },
-  { id: 2, name: 'Jane Manager', email: 'jane@lead.com', role: 'manager', status: 'active', lastLogin: 'Jun 02, 2025' },
-  { id: 3, name: 'Bob Supervisor', email: 'bob@lead.com', role: 'manager', status: 'inactive', lastLogin: 'May 30, 2025' },
-  { id: 4, name: 'Lisa Agent', email: 'lisa@lead.com', role: 'user', status: 'active', lastLogin: 'Jun 01, 2025' }
+  { id: 1, name: 'Admin User', email: 'admin@lead.com', role: 'admin', status: 'active', lastLogin: format(new Date('2025-06-03'), 'MMM dd, yyyy') },
+  { id: 2, name: 'Jane Manager', email: 'jane@lead.com', role: 'manager', status: 'active', lastLogin: format(new Date('2025-06-02'), 'MMM dd, yyyy') },
+  { id: 3, name: 'Bob Supervisor', email: 'bob@lead.com', role: 'manager', status: 'inactive', lastLogin: format(new Date('2025-05-30'), 'MMM dd, yyyy') },
+  { id: 4, name: 'Lisa Agent', email: 'lisa@lead.com', role: 'user', status: 'active', lastLogin: format(new Date('2025-06-01'), 'MMM dd, yyyy') }
 ];
 
 export const DataContext = createContext<DataContextType>({
@@ -49,13 +50,13 @@ export const useData = () => useContext(DataContext);
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [opportunities, setOpportunities] = useState<Opportunity[]>(initialOpportunities);
-  const [managementUsers, setManagementUsers] = useState(initialManagementUsers);
+  const [managementUsers] = useState(initialManagementUsers);
 
   const addLead = (lead: Omit<Lead, 'id' | 'date'>) => {
     const newLead: Lead = {
       ...lead,
       id: leads.length + 1,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      date: format(new Date(), 'MMM dd, yyyy')
     };
     setLeads([...leads, newLead]);
   };
@@ -85,8 +86,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return opportunities.filter(opp => {
       const matchesSearch = searchTerm === '' || opp.domain.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = status === '' || opp.status === status;
-      
-      // Simplified date filtering for demo
       const matchesDate = dateFilter === '' || true;
       
       return matchesSearch && matchesStatus && matchesDate;
