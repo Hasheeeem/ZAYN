@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNotification } from '../context/NotificationContext';
+import { useData } from '../context/DataContext';
 import { Lead } from '../types/data';
 import ActionButton from './ActionButton';
 
@@ -6,52 +8,230 @@ interface Props {
   onSave: (lead: Lead) => void;
   onCancel: () => void;
   initialData?: Lead;
+  isLoading?: boolean;
 }
 
-const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData }) => {
-  const [form, setForm] = useState<Lead>(
-    initialData || {
-      id: Date.now().toString(),
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      status: 'new',
-      source: 'website',
-      notes: '',
-      createdAt: new Date().toISOString(),
+const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = false }) => {
+  const { showNotification } = useNotification();
+  const { salespeople } = useData();
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  const [form, setForm] = useState<Lead>({
+    id: initialData?.id || Date.now().toString(),
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    domain: '',
+    price: 0,
+    clicks: 0,
+    update: '',
+    status: 'new',
+    source: 'website',
+    notes: '',
+    createdAt: new Date().toISOString()
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      setForm(initialData);
     }
-  );
+  }, [initialData]);
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!form.firstName.trim()) {
+      newErrors.firstName = 'First name is required';
+    }
+
+    if (!form.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = 'Invalid email format';
+    }
+
+    if (form.phone && !/^\d+$/.test(form.phone.replace(/[-\s]/g, ''))) {
+      newErrors.phone = 'Phone must contain only digits';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      showNotification('Please fix the errors in the form', 'error');
+      return;
+    }
+
+    onSave(form);
+    showNotification('Lead saved successfully', 'success');
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+    setForm(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error when field is modified
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
   };
 
   return (
-    <div className="space-y-2">
-      <input name="firstName" value={form.firstName} onChange={handleChange} placeholder="First Name" className="w-full border p-2" />
-      <input name="lastName" value={form.lastName} onChange={handleChange} placeholder="Last Name" className="w-full border p-2" />
-      <input name="email" value={form.email} onChange={handleChange} placeholder="Email" className="w-full border p-2" />
-      <input name="phone" value={form.phone} onChange={handleChange} placeholder="Phone" className="w-full border p-2" />
-      <select name="status" value={form.status} onChange={handleChange} className="w-full border p-2">
-        <option value="new">New</option>
-        <option value="contacted">Contacted</option>
-        <option value="qualified">Qualified</option>
-        <option value="lost">Lost</option>
-      </select>
-      <select name="source" value={form.source} onChange={handleChange} className="w-full border p-2">
-        <option value="website">Website</option>
-        <option value="ads">Ads</option>
-        <option value="referral">Referral</option>
-        <option value="other">Other</option>
-      </select>
-      <textarea name="notes" value={form.notes} onChange={handleChange} placeholder="Notes" className="w-full border p-2" />
-      <div className="flex justify-end gap-2">
-        <ActionButton label="Cancel" onClick={onCancel} />
-        <ActionButton label="Save" onClick={() => onSave(form)} />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+            First Name *
+          </label>
+          <input
+            id="firstName"
+            name="firstName"
+            type="text"
+            value={form.firstName}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.firstName ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
+            disabled={isLoading}
+            required
+          />
+          {errors.firstName && (
+            <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+            Last Name
+          </label>
+          <input
+            id="lastName"
+            name="lastName"
+            type="text"
+            value={form.lastName}
+            onChange={handleChange}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            disabled={isLoading}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            Email *
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            value={form.email}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.email ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
+            disabled={isLoading}
+            required
+          />
+          {errors.email && (
+            <p className="mt-1 text-sm text-red-500">{errors.email}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+            Phone
+          </label>
+          <input
+            id="phone"
+            name="phone"
+            type="tel"
+            value={form.phone}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.phone ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
+            disabled={isLoading}
+          />
+          {errors.phone && (
+            <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="source" className="block text-sm font-medium text-gray-700 mb-1">
+            Lead Source
+          </label>
+          <select
+            id="source"
+            name="source"
+            value={form.source}
+            onChange={handleChange}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            disabled={isLoading}
+          >
+            <option value="website">Website</option>
+            <option value="referral">Referral</option>
+            <option value="call">Call</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-700 mb-1">
+            Assigned To
+          </label>
+          <select
+            id="assignedTo"
+            name="assignedTo"
+            value={form.assignedTo}
+            onChange={handleChange}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            disabled={isLoading}
+          >
+            <option value="">Unassigned</option>
+            {salespeople.map(person => (
+              <option key={person.id} value={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-    </div>
+
+      <div>
+        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+          Notes
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          value={form.notes}
+          onChange={handleChange}
+          rows={4}
+          className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+          disabled={isLoading}
+        />
+      </div>
+
+      <div className="flex justify-end gap-3 pt-4">
+        <ActionButton
+          label="Cancel"
+          onClick={onCancel}
+          variant="secondary"
+          disabled={isLoading}
+        />
+        <ActionButton
+          label={isLoading ? 'Saving...' : 'Save Lead'}
+          onClick={handleSubmit}
+          variant="primary"
+          disabled={isLoading}
+        />
+      </div>
+    </form>
   );
 };
 

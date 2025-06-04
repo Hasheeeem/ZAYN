@@ -4,8 +4,9 @@ import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import Dashboard from '../pages/Dashboard';
 import Leads from '../pages/Leads';
-import People from '../pages/People';
+import Management from '../pages/Management';
 import Reports from '../pages/Reports';
+import Settings from '../pages/Settings';
 
 const AdminLayout: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
@@ -24,9 +25,11 @@ const AdminLayout: React.FC = () => {
       case 'leads':
         return 'Lead Management';
       case 'management':
-        return 'System Management';
+        return 'Team Management';
       case 'reports':
         return 'Reports & Analytics';
+      case 'settings':
+        return 'Admin Settings';
       default:
         return 'Dashboard';
     }
@@ -52,8 +55,9 @@ const AdminLayout: React.FC = () => {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
-              <Route path="/management" element={<People />} />
+              <Route path="/management" element={<Management />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>
         </div>

@@ -3,8 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
   Globe,
-  Settings, 
-  BarChart, 
+  Users, 
+  BarChart,
+  Settings,
   LogOut 
 } from 'lucide-react';
 
@@ -25,8 +26,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
   const navItems = [
     { id: 'dashboard', name: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'leads', name: 'Lead Management', icon: <Globe size={20} /> },
-    { id: 'management', name: 'Management', icon: <Settings size={20} /> },
-    { id: 'reports', name: 'Reports', icon: <BarChart size={20} /> }
+    { id: 'management', name: 'Team Management', icon: <Users size={20} /> },
+    { id: 'reports', name: 'Reports', icon: <BarChart size={20} /> },
+    { id: 'settings', name: 'Settings', icon: <Settings size={20} /> }
   ];
 
   return (
