@@ -28,7 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
     { id: 'leads', name: 'Lead Management', icon: <Globe size={20} /> },
     { id: 'usersettings', name: 'User Settings', icon: <Users size={20} /> },
     { id: 'reports', name: 'Reports', icon: <BarChart size={20} /> },
-    { id: 'settings', name: 'Settings', icon: <Settings size={20} /> }
+    { id: 'management', name: 'Management', icon: <Settings size={20} /> }
   ];
 
   return (

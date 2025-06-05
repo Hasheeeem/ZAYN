@@ -15,7 +15,7 @@ const SETTINGS_SECTIONS = [
   { id: 'ownership', name: 'Lead Ownership', icon: <Users size={20} /> }
 ];
 
-const Settings: React.FC = () => {
+const Management: React.FC = () => {
   const [activeSection, setActiveSection] = useState('brands');
   const { showNotification } = useNotification();
   const [isModalOpen, setIsModalOpen] = useState(false);

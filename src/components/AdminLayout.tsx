@@ -28,8 +28,8 @@ const AdminLayout: React.FC = () => {
         return 'User Settings';
       case 'reports':
         return 'Reports & Analytics';
-      case 'settings':
-        return 'Admin Settings';
+      case 'management':
+        return 'Management';
       default:
         return 'Dashboard';
     }
@@ -57,7 +57,7 @@ const AdminLayout: React.FC = () => {
               <Route path="/leads" element={<Leads />} />
               <Route path="/usersettings" element={<UserSettings />} />
               <Route path="/reports" element={<Reports />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route path="/management" element={<Management />} />
             </Routes>
           </main>
         </div>
