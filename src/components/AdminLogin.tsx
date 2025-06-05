@@ -18,7 +18,7 @@ const AdminLogin: React.FC = () => {
           <div className="mb-3 inline-flex items-center justify-center w-16 h-16 bg-white/20 rounded-full">
             <div className="text-3xl font-bold">Z</div>
           </div>
-          <h1 className="text-2xl font-bold">ZownLead CRM</h1>
+          <h1 className="text-2xl font-bold">Zayn CRM</h1>
           <p className="mt-2 opacity-80">Sign in to your account</p>
         </div>
         
