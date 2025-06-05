@@ -8,6 +8,7 @@ import LeadForm from '../components/LeadForm';
 import { useData } from '../context/DataContext';
 import { useNotification } from '../context/NotificationContext';
 import { Lead } from '../types/data';
+import StatusBadge from '../components/StatusBadge';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -82,28 +83,9 @@ const Leads: React.FC = () => {
 
   const columns = [
     { 
-      key: 'select',
-      label: '',
-      render: (value: any, item: Lead) => (
-        <input
-          type="checkbox"
-          checked={selectedLeads.has(item.id)}
-          onChange={(e) => {
-            const newSelected = new Set(selectedLeads);
-            if (e.target.checked) {
-              newSelected.add(item.id);
-            } else {
-              newSelected.delete(item.id);
-            }
-            setSelectedLeads(newSelected);
-          }}
-          className="rounded text-indigo-600"
-        />
-      )
-    },
-    { 
       key: 'domain',
       label: 'Domain',
+      sortable: true,
       render: (value: string, item: Lead) => (
         <div>
           <div className="font-medium">{value}</div>
@@ -111,42 +93,48 @@ const Leads: React.FC = () => {
         </div>
       )
     },
-    { key: 'price', label: 'Price', render: (value: number) => `$${value}` },
-    { key: 'source', label: 'Source' },
+    { key: 'price', label: 'Price', sortable: true, render: (value: number) => `$${value}` },
+    { key: 'source', label: 'Source', sortable: true },
     { 
       key: 'status',
       label: 'Status',
-      render: (value: string) => {
-        const statusSteps = ['new', 'contacted', 'qualified', 'converted', 'lost'];
-        const currentIndex = statusSteps.indexOf(value);
-        
-        return (
-          <div className="flex items-center gap-1">
-            {statusSteps.map((step, index) => (
-              <React.Fragment key={step}>
-                <div
-                  className={`h-2 w-2 rounded-full ${
-                    index <= currentIndex
-                      ? 'bg-indigo-600'
-                      : 'bg-gray-200'
-                  }`}
-                />
-                {index < statusSteps.length - 1 && (
-                  <div className="h-0.5 w-3 bg-gray-200" />
-                )}
-              </React.Fragment>
-            ))}
-          </div>
-        );
-      }
+      sortable: true,
+      render: (value: string) => <StatusBadge status={value} type="lead" />
     },
     { 
       key: 'assignedTo',
       label: 'Assigned To',
+      sortable: true,
       render: (value: string) => {
         const person = salespeople?.find(p => p.id.toString() === value);
         return person ? person.name : 'Unassigned';
       }
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (_: any, item: Lead) => (
+        <div className="flex justify-end gap-2">
+          <ActionButton
+            label="Edit"
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              setSelectedLead(item);
+              setIsViewModalOpen(true);
+            }}
+          />
+          <ActionButton
+            label="Delete"
+            variant="danger"
+            size="sm"
+            onClick={() => {
+              setSelectedLead(item);
+              setIsDeleteModalOpen(true);
+            }}
+          />
+        </div>
+      )
     }
   ];
 
@@ -212,30 +200,17 @@ const Leads: React.FC = () => {
         />
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <DataTable
           columns={columns}
           data={paginatedLeads}
-          actions={{
-            edit: (id) => {
-              const lead = leads.find(l => l.id === id);
-              if (lead) {
-                setSelectedLead(lead);
-                setIsViewModalOpen(true);
-              }
-            },
-            delete: (id) => {
-              const lead = leads.find(l => l.id === id);
-              if (lead) {
-                setSelectedLead(lead);
-                setIsDeleteModalOpen(true);
-              }
-            }
-          }}
+          pageSize={ITEMS_PER_PAGE}
+          selectable={true}
+          onSelectionChange={(ids) => setSelectedLeads(new Set(ids))}
           statusType="lead"
         />
         
-        <div className="mt-4 flex justify-between items-center">
+        <div className="px-6 py-4 border-t border-gray-200 flex justify-between items-center">
           <div className="text-sm text-gray-500">
             Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredLeads.length)} of {filteredLeads.length} leads
           </div>
@@ -267,7 +242,7 @@ const Leads: React.FC = () => {
       <Modal
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
-        title="Lead Details"
+        title="Edit Lead"
       >
         {selectedLead && (
           <LeadForm

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNotification } from '../context/NotificationContext';
 import { useData } from '../context/DataContext';
 import { Lead } from '../types/data';
-import ActionButton from './ActionButton';
+import ActionButton from '../components/ActionButton';
 
 interface Props {
   onSave: (lead: Lead) => void;
@@ -25,11 +25,12 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     domain: '',
     price: 0,
     clicks: 0,
-    update: '',
+    update: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     status: 'new',
     source: 'website',
     notes: '',
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    assignedTo: ''
   });
 
   useEffect(() => {
@@ -51,8 +52,12 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
       newErrors.email = 'Invalid email format';
     }
 
-    if (form.phone && !/^\d+$/.test(form.phone.replace(/[-\s]/g, ''))) {
-      newErrors.phone = 'Phone must contain only digits';
+    if (!form.domain.trim()) {
+      newErrors.domain = 'Domain is required';
+    }
+
+    if (form.price < 0) {
+      newErrors.price = 'Price cannot be negative';
     }
 
     setErrors(newErrors);
@@ -68,21 +73,22 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     }
 
     onSave(form);
-    showNotification('Lead saved successfully', 'success');
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    setForm(prev => ({ 
+      ...prev, 
+      [name]: name === 'price' ? parseFloat(value) || 0 : value 
+    }));
     
-    // Clear error when field is modified
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4 p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
@@ -98,7 +104,6 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
               errors.firstName ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading}
-            required
           />
           {errors.firstName && (
             <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
@@ -134,7 +139,6 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
               errors.email ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading}
-            required
           />
           {errors.email && (
             <p className="mt-1 text-sm text-red-500">{errors.email}</p>
@@ -151,14 +155,69 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             type="tel"
             value={form.phone}
             onChange={handleChange}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            disabled={isLoading}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-1">
+            Domain *
+          </label>
+          <input
+            id="domain"
+            name="domain"
+            type="text"
+            value={form.domain}
+            onChange={handleChange}
             className={`w-full px-4 py-2 rounded-lg border ${
-              errors.phone ? 'border-red-500' : 'border-gray-300'
+              errors.domain ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading}
           />
-          {errors.phone && (
-            <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
+          {errors.domain && (
+            <p className="mt-1 text-sm text-red-500">{errors.domain}</p>
           )}
+        </div>
+
+        <div>
+          <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
+            Price
+          </label>
+          <input
+            id="price"
+            name="price"
+            type="number"
+            value={form.price}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.price ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
+            disabled={isLoading}
+          />
+          {errors.price && (
+            <p className="mt-1 text-sm text-red-500">{errors.price}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
+            Status
+          </label>
+          <select
+            id="status"
+            name="status"
+            value={form.status}
+            onChange={handleChange}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            disabled={isLoading}
+          >
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="qualified">Qualified</option>
+            <option value="converted">Converted</option>
+            <option value="lost">Lost</option>
+          </select>
         </div>
 
         <div>
