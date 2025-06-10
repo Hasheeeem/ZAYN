@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import SearchFilter from '../components/SearchFilter';
 import { useNotification } from '../context/NotificationContext';
 import { useData } from '../context/DataContext';
+import codes from 'currency-codes';
 
 interface Brand {
   id: number;
@@ -42,12 +43,75 @@ interface LeadStatus {
   order: number;
 }
 
-interface LeadSource {
-  id: number;
-  name: string;
-  description: string;
-  status: 'active' | 'inactive';
-}
+const LEAD_SOURCES = [
+  'Website',
+  'Referral',
+  'Word of Mouth',
+  'Social Media',
+  'Email Campaign',
+  'Trade Show',
+  'Cold Call',
+  'Partner',
+  'Advertisement',
+  'Other'
+];
+
+const CURRENCIES = [
+  { code: 'USD', name: 'US Dollar', flag: '🇺🇸' },
+  { code: 'EUR', name: 'Euro', flag: '🇪🇺' },
+  { code: 'GBP', name: 'British Pound', flag: '🇬🇧' },
+  { code: 'JPY', name: 'Japanese Yen', flag: '🇯🇵' },
+  { code: 'AUD', name: 'Australian Dollar', flag: '🇦🇺' },
+  { code: 'CAD', name: 'Canadian Dollar', flag: '🇨🇦' },
+  { code: 'CHF', name: 'Swiss Franc', flag: '🇨🇭' },
+  { code: 'CNY', name: 'Chinese Yuan', flag: '🇨🇳' },
+  { code: 'SEK', name: 'Swedish Krona', flag: '🇸🇪' },
+  { code: 'NZD', name: 'New Zealand Dollar', flag: '🇳🇿' },
+  { code: 'MXN', name: 'Mexican Peso', flag: '🇲🇽' },
+  { code: 'SGD', name: 'Singapore Dollar', flag: '🇸🇬' },
+  { code: 'HKD', name: 'Hong Kong Dollar', flag: '🇭🇰' },
+  { code: 'NOK', name: 'Norwegian Krone', flag: '🇳🇴' },
+  { code: 'KRW', name: 'South Korean Won', flag: '🇰🇷' },
+  { code: 'TRY', name: 'Turkish Lira', flag: '🇹🇷' },
+  { code: 'RUB', name: 'Russian Ruble', flag: '🇷🇺' },
+  { code: 'INR', name: 'Indian Rupee', flag: '🇮🇳' },
+  { code: 'BRL', name: 'Brazilian Real', flag: '🇧🇷' },
+  { code: 'ZAR', name: 'South African Rand', flag: '🇿🇦' },
+  { code: 'PLN', name: 'Polish Zloty', flag: '🇵🇱' },
+  { code: 'ILS', name: 'Israeli Shekel', flag: '🇮🇱' },
+  { code: 'DKK', name: 'Danish Krone', flag: '🇩🇰' },
+  { code: 'CZK', name: 'Czech Koruna', flag: '🇨🇿' },
+  { code: 'HUF', name: 'Hungarian Forint', flag: '🇭🇺' },
+  { code: 'RON', name: 'Romanian Leu', flag: '🇷🇴' },
+  { code: 'BGN', name: 'Bulgarian Lev', flag: '🇧🇬' },
+  { code: 'HRK', name: 'Croatian Kuna', flag: '🇭🇷' },
+  { code: 'ISK', name: 'Icelandic Krona', flag: '🇮🇸' },
+  { code: 'PHP', name: 'Philippine Peso', flag: '🇵🇭' },
+  { code: 'MYR', name: 'Malaysian Ringgit', flag: '🇲🇾' },
+  { code: 'THB', name: 'Thai Baht', flag: '🇹🇭' },
+  { code: 'IDR', name: 'Indonesian Rupiah', flag: '🇮🇩' },
+  { code: 'AED', name: 'UAE Dirham', flag: '🇦🇪' },
+  { code: 'SAR', name: 'Saudi Riyal', flag: '🇸🇦' },
+  { code: 'EGP', name: 'Egyptian Pound', flag: '🇪🇬' },
+  { code: 'QAR', name: 'Qatari Riyal', flag: '🇶🇦' },
+  { code: 'KWD', name: 'Kuwaiti Dinar', flag: '🇰🇼' },
+  { code: 'BHD', name: 'Bahraini Dinar', flag: '🇧🇭' },
+  { code: 'OMR', name: 'Omani Rial', flag: '🇴🇲' },
+  { code: 'JOD', name: 'Jordanian Dinar', flag: '🇯🇴' },
+  { code: 'LBP', name: 'Lebanese Pound', flag: '🇱🇧' },
+  { code: 'PKR', name: 'Pakistani Rupee', flag: '🇵🇰' },
+  { code: 'BDT', name: 'Bangladeshi Taka', flag: '🇧🇩' },
+  { code: 'LKR', name: 'Sri Lankan Rupee', flag: '🇱🇰' },
+  { code: 'NPR', name: 'Nepalese Rupee', flag: '🇳🇵' },
+  { code: 'AFN', name: 'Afghan Afghani', flag: '🇦🇫' },
+  { code: 'MMK', name: 'Myanmar Kyat', flag: '🇲🇲' },
+  { code: 'VND', name: 'Vietnamese Dong', flag: '🇻🇳' },
+  { code: 'LAK', name: 'Lao Kip', flag: '🇱🇦' },
+  { code: 'KHR', name: 'Cambodian Riel', flag: '🇰🇭' },
+  { code: 'BND', name: 'Brunei Dollar', flag: '🇧🇳' },
+  { code: 'TWD', name: 'Taiwan Dollar', flag: '🇹🇼' },
+  { code: 'MOP', name: 'Macanese Pataca', flag: '🇲🇴' }
+];
 
 interface OwnershipRule {
   id: number;
@@ -385,11 +449,18 @@ const ProductSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
 };
 
 // Location Settings Component
+// Location Settings Component
 const LocationSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
   const columns = [
     { key: 'name', label: 'Location' },
-    { key: 'region', label: 'Region' },
-    { key: 'assignedTo', label: 'Assigned To' },
+    { 
+      key: 'currency', 
+      label: 'Currency',
+      render: (value: string) => {
+        const currency = CURRENCIES.find(c => c.code === value);
+        return currency ? `${currency.flag} ${currency.code}` : value;
+      }
+    },
     { key: 'status', label: 'Status' },
     {
       key: 'actions',
@@ -426,6 +497,8 @@ const LocationSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
     </div>
   );
 };
+
+
 
 // Status Settings Component
 const StatusSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
@@ -489,7 +562,6 @@ const StatusSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
 const SourceSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
   const columns = [
     { key: 'name', label: 'Source' },
-    { key: 'description', label: 'Description' },
     { key: 'status', label: 'Status' },
     {
       key: 'actions',
@@ -586,30 +658,42 @@ const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => 
 };
 
 // Brand Form Component
-const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel, salespeople }) => {
+const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<Brand>(initialData || {
     id: Date.now(),
     name: '',
     logo: '',
-    defaultSalesperson: '',
     description: '',
     status: 'active'
   });
 
+  const handleSubmit = () => {
+    if (!form.name) {
+      // Show error notification
+      return;
+    }
+    onSave(form);
+  };
+
   return (
     <div className="space-y-4 p-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Brand Name <span className="text-red-500">*</span>
+        </label>
         <input
           type="text"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         />
       </div>
       
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Logo URL
+        </label>
         <input
           type="text"
           value={form.logo}
@@ -620,21 +704,9 @@ const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel, salespe
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Default Salesperson</label>
-        <select
-          value={form.defaultSalesperson}
-          onChange={(e) => setForm({ ...form, defaultSalesperson: e.target.value })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">Select Salesperson</option>
-          {salespeople.map((person: any) => (
-            <option key={person.id} value={person.id}>{person.name}</option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Description
+        </label>
         <textarea
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -644,11 +716,14 @@ const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel, salespe
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Status <span className="text-red-500">*</span>
+        </label>
         <select
           value={form.status}
           onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'inactive' })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         >
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -657,7 +732,7 @@ const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel, salespe
 
       <div className="flex justify-end gap-3 mt-6">
         <ActionButton label="Cancel" onClick={onCancel} variant="secondary" />
-        <ActionButton label="Save" onClick={() => onSave(form)} variant="primary" />
+        <ActionButton label="Save" onClick={handleSubmit} variant="primary" />
       </div>
     </div>
   );
@@ -668,50 +743,56 @@ const ProductForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => 
   const [form, setForm] = useState<Product>(initialData || {
     id: Date.now(),
     name: '',
-    sku: '',
     price: 0,
     brandId: 0,
     status: 'active'
   });
 
+  const handleSubmit = () => {
+    if (!form.name) {
+      // Show error notification
+      return;
+    }
+    onSave(form);
+  };
+
   return (
     <div className="space-y-4 p-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Product Name <span className="text-red-500">*</span>
+        </label>
         <input
           type="text"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">SKU/Code</label>
-        <input
-          type="text"
-          value={form.sku}
-          onChange={(e) => setForm({ ...form, sku: e.target.value })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Price <span className="text-red-500">*</span>
+        </label>
         <input
           type="number"
           value={form.price}
           onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Status <span className="text-red-500">*</span>
+        </label>
         <select
           value={form.status}
           onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'inactive' })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         >
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -720,77 +801,71 @@ const ProductForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => 
 
       <div className="flex justify-end gap-3 mt-6">
         <ActionButton label="Cancel" onClick={onCancel} variant="secondary" />
-        <ActionButton label="Save" onClick={() => onSave(form)} variant="primary" />
+        <ActionButton label="Save" onClick={handleSubmit} variant="primary" />
       </div>
     </div>
   );
 };
 
 // Location Form Component
-const LocationForm: React.FC<any> = ({ mode, initialData, onSave, onCancel, salespeople }) => {
+const LocationForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<Location>(initialData || {
     id: Date.now(),
     name: '',
-    region: '',
-    assignedTo: '',
+    currency: '',
     status: 'active'
   });
+
+  const handleSubmit = () => {
+    if (!form.name || !form.currency) {
+      // Show error notification
+      return;
+    }
+    onSave(form);
+  };
 
   return (
     <div className="space-y-4 p-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Location Name</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Location Name <span className="text-red-500">*</span>
+        </label>
         <input
           type="text"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Region</label>
-        <input
-          type="text"
-          value={form.region}
-          onChange={(e) => setForm({ ...form, region: e.target.value })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Currency <span className="text-red-500">*</span>
+        </label>
         <select
-          value={form.assignedTo}
-          onChange={(e) => setForm({ ...form, assignedTo: e.target.value })}
+          value={form.currency}
+          onChange={(e) => setForm({ ...form, currency: e.target.value })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         >
-          <option value="">Select Salesperson</option>
-          {salespeople.map((person: any) => (
-            <option key={person.id} value={person.id}>{person.name}</option>
+          <option value="">Select Currency</option>
+          {CURRENCIES.map(currency => (
+            <option key={currency.code} value={currency.code}>
+              {currency.flag} {currency.code} - {currency.name}
+            </option>
           ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-        <select
-          value={form.status}
-          onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'inactive' })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
         </select>
       </div>
 
       <div className="flex justify-end gap-3 mt-6">
         <ActionButton label="Cancel" onClick={onCancel} variant="secondary" />
-        <ActionButton label="Save" onClick={() => onSave(form)} variant="primary" />
+        <ActionButton label="Save" onClick={handleSubmit} variant="primary" />
       </div>
     </div>
   );
 };
+
 
 // Status Form Component
 const StatusForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
@@ -860,38 +935,47 @@ const SourceForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<LeadSource>(initialData || {
     id: Date.now(),
     name: '',
-    description: '',
     status: 'active'
   });
+
+  const handleSubmit = () => {
+    if (!form.name) {
+      // Show error notification
+      return;
+    }
+    onSave(form);
+  };
 
   return (
     <div className="space-y-4 p-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Source Name</label>
-        <input
-          type="text"
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Source <span className="text-red-500">*</span>
+        </label>
+        <select
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        />
+          required
+        >
+          <option value="">Select Source</option>
+          {LEAD_SOURCES.map(source => (
+            <option key={source} value={source}>
+              {source}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-        <textarea
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-          rows={3}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Status <span className="text-red-500">*</span>
+        </label>
         <select
           value={form.status}
           onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'inactive' })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
         >
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
@@ -900,99 +984,14 @@ const SourceForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
 
       <div className="flex justify-end gap-3 mt-6">
         <ActionButton label="Cancel" onClick={onCancel} variant="secondary" />
-        <ActionButton label="Save" onClick={() => onSave(form)} variant="primary" />
+        <ActionButton label="Save" onClick={handleSubmit} variant="primary" />
       </div>
     </div>
   );
 };
-
-// Ownership Form Component
-const OwnershipForm: React.FC<any> = ({ mode, initialData, onSave, onCancel, salespeople }) => {
-  const [form, setForm] = useState<OwnershipRule>(initialData || {
-    id: Date.now(),
-    name: '',
-    condition: {
-      type: 'location',
-      value: ''
-    },
-    salesPersonId: '',
-    isActive: true
-  });
-
-  return (
-    <div className="space-y-4 p-6">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Rule Name</label>
-        <input
-          type="text"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Condition Type</label>
-        <select
-          value={form.condition.type}
-          onChange={(e) => setForm({
-            ...form,
-            condition: { ...form.condition, type: e.target.value as 'location' | 'brand' }
-          })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="location">By Location</option>
-          <option value="brand">By Brand</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Condition Value</label>
-        <input
-          type="text"
-          value={form.condition.value}
-          onChange={(e) => setForm({
-            ...form,
-            condition: { ...form.condition, value: e.target.value }
-          })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-          placeholder={`Enter ${form.condition.type === 'location' ? 'location' : 'brand'} name`}
-        />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Assign To</label>
-        <select
-          value={form.salesPersonId}
-          onChange={(e) => setForm({ ...form, salesPersonId: e.target.value })}
-          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-        >
-          <option value="">Select Salesperson</option>
-          {salespeople.map((person: any) => (
-            <option key={person.id} value={person.id}>{person.name}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="isActive"
-          checked={form.isActive}
-          onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
-          className="rounded text-indigo-600"
-        />
-        <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
-          Rule is active
-        </label>
-      </div>
-
-      <div className="flex justify-end gap-3 mt-6">
-        <ActionButton label="Cancel" onClick={onCancel} variant="secondary" />
-        <ActionButton label="Save" onClick={() => onSave(form)} variant="primary" />
-      </div>
-    </div>
-  );
-};
-
 export default Management;
+
+
+
+
+

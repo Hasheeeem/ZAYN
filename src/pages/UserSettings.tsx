@@ -8,34 +8,52 @@ import { useData } from '../context/DataContext';
 import { useNotification } from '../context/NotificationContext';
 import { User } from '../types/data';
 
-interface InviteFormData {
+interface NewUserFormData {
+  username: string;
+  password: string;
   email: string;
-  role: 'admin' | 'sales' | 'viewer';
+  phoneNumber: string;
+  role: 'admin' | 'sales';
 }
 
 const UserSettings: React.FC = () => {
   const { managementUsers } = useData();
   const { showNotification } = useNotification();
-  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [inviteForm, setInviteForm] = useState<InviteFormData>({
+  const [newUserForm, setNewUserForm] = useState<NewUserFormData>({
+    username: '',
+    password: '',
     email: '',
-    role: 'viewer'
+    phoneNumber: '',
+    role: 'sales'
   });
 
-  const handleInviteUser = () => {
+  const handleAddUser = () => {
+    // Validate form
+    if (!newUserForm.username || !newUserForm.password || !newUserForm.email || !newUserForm.phoneNumber) {
+      showNotification('Please fill in all required fields', 'error');
+      return;
+    }
+
     // Simulate API call
     setTimeout(() => {
-      showNotification(`Invitation sent to ${inviteForm.email}`, 'success');
-      setIsInviteModalOpen(false);
-      setInviteForm({ email: '', role: 'viewer' });
+      showNotification('User added successfully', 'success');
+      setIsAddModalOpen(false);
+      setNewUserForm({
+        username: '',
+        password: '',
+        email: '',
+        phoneNumber: '',
+        role: 'sales'
+      });
     }, 1000);
   };
 
-  const handleUpdateUser = (userId: number, updates: Partial<User> & { role?: 'admin' | 'sales' | 'viewer' }) => {
+  const handleUpdateUser = (userId: number, updates: Partial<User>) => {
     // Simulate API call
     setTimeout(() => {
       showNotification('User updated successfully', 'success');
@@ -63,6 +81,7 @@ const UserSettings: React.FC = () => {
       )
     },
     { key: 'email', label: 'Email' },
+    { key: 'phoneNumber', label: 'Phone Number' },
     { 
       key: 'role',
       label: 'Role',
@@ -99,9 +118,9 @@ const UserSettings: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-semibold text-gray-800">User Settings</h2>
         <ActionButton
-          label="Invite User"
+          label="Add New User"
           icon={<UserPlus size={18} />}
-          onClick={() => setIsInviteModalOpen(true)}
+          onClick={() => setIsAddModalOpen(true)}
           variant="primary"
         />
       </div>
@@ -117,8 +136,7 @@ const UserSettings: React.FC = () => {
               onChange: setRoleFilter,
               options: [
                 { value: 'admin', label: 'Admin' },
-                { value: 'sales', label: 'Sales' },
-                { value: 'viewer', label: 'Viewer' }
+                { value: 'sales', label: 'Sales' }
               ]
             }
           ]}
@@ -147,34 +165,74 @@ const UserSettings: React.FC = () => {
       />
 
       <Modal
-        isOpen={isInviteModalOpen}
-        onClose={() => setIsInviteModalOpen(false)}
-        title="Invite User"
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Add New User"
       >
         <div className="p-6">
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
+                Username <span className="text-red-500">*</span>
               </label>
               <input
-                type="email"
-                value={inviteForm.email}
-                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                type="text"
+                value={newUserForm.username}
+                onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                placeholder="Enter email address"
+                placeholder="Enter username"
+                required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
-                Role
+                Password <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="password"
+                value={newUserForm.password}
+                onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter password"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                value={newUserForm.email}
+                onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter email address"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone Number <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="tel"
+                value={newUserForm.phoneNumber}
+                onChange={(e) => setNewUserForm({ ...newUserForm, phoneNumber: e.target.value })}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                placeholder="Enter phone number"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                User Level <span className="text-red-500">*</span>
               </label>
               <select
-                value={inviteForm.role}
-                onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as 'admin' | 'sales' | 'viewer' })}
+                value={newUserForm.role}
+                onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value as 'admin' | 'sales' })}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                required
               >
-                <option value="viewer">Viewer</option>
                 <option value="sales">Sales</option>
                 <option value="admin">Admin</option>
               </select>
@@ -183,12 +241,12 @@ const UserSettings: React.FC = () => {
           <div className="mt-6 flex justify-end gap-3">
             <ActionButton
               label="Cancel"
-              onClick={() => setIsInviteModalOpen(false)}
+              onClick={() => setIsAddModalOpen(false)}
               variant="secondary"
             />
             <ActionButton
-              label="Send Invite"
-              onClick={handleInviteUser}
+              label="Add User"
+              onClick={handleAddUser}
               variant="primary"
             />
           </div>
@@ -205,16 +263,16 @@ const UserSettings: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Role
+                  User Level <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={selectedUser.role}
                   onChange={(e) =>
-                    setSelectedUser({ ...selectedUser, role: e.target.value as 'admin' | 'sales' | 'viewer' })
+                    setSelectedUser({ ...selectedUser, role: e.target.value as 'admin' | 'sales' })
                   }
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  required
                 >
-                  <option value="viewer">Viewer</option>
                   <option value="sales">Sales</option>
                   <option value="admin">Admin</option>
                 </select>
@@ -231,7 +289,7 @@ const UserSettings: React.FC = () => {
                 onClick={() => {
                   if (selectedUser) {
                     handleUpdateUser(selectedUser.id, {
-                      role: selectedUser.role as 'admin' | 'sales' | 'viewer'
+                      role: selectedUser.role as 'admin' | 'sales'
                     });
                   }
                 }}
