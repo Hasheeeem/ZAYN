@@ -18,10 +18,10 @@
 ```env
 CI_ENVIRONMENT = development
 
-database.default.hostname = your-neon-hostname.neon.tech
-database.default.database = your-database-name
-database.default.username = your-username
-database.default.password = your-password
+database.default.hostname = db.nbbhuahwjrnwuffrrkiy.supabase.co
+database.default.database = postgres
+database.default.username = postgres
+database.default.password = Zayn@2022
 database.default.DBDriver = Postgre
 database.default.port = 5432
 
