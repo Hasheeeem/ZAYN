@@ -34,5 +34,8 @@ $routes->group('api', ['namespace' => 'App\Controllers\Api'], function($routes) 
         $routes->get('reports/dashboard', 'ReportsController::dashboard');
         $routes->get('reports/leads', 'ReportsController::leads');
         $routes->get('reports/performance', 'ReportsController::performance');
+
+        $routes->get('db-test', 'DatabaseTest::index');
+
     });
 });
