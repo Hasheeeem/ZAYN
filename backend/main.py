@@ -10,8 +10,12 @@ import os
 from dotenv import load_dotenv
 import jwt
 from passlib.context import CryptContext
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr, validator
 import uvicorn
+import secrets
+import hashlib
+import time
+from functools import wraps
 
 # Load environment variables
 load_dotenv()
@@ -21,19 +25,23 @@ app = FastAPI(title="ZownLead CRM API", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://localhost:5173", "http://localhost:3000"],  # Added HTTPS origin
+    allow_origins=["http://localhost:5173", "https://localhost:5173", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Security
+# Security configuration
 security = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # MongoDB connection
 MONGODB_CONNECTION_STRING = os.getenv("MONGODB_CONNECTION_STRING")
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-this")
+JWT_SECRET = os.getenv("JWT_SECRET", secrets.token_urlsafe(32))
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_HOURS = 24
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION_MINUTES = 30
 
 if not MONGODB_CONNECTION_STRING:
     raise ValueError("MONGODB_CONNECTION_STRING environment variable is required")
@@ -50,18 +58,31 @@ locations_collection = db.locations
 statuses_collection = db.statuses
 sources_collection = db.sources
 ownership_collection = db.ownership
+login_attempts_collection = db.login_attempts
 
-# Pydantic models
+# Enhanced Pydantic models
 class UserCreate(BaseModel):
-    name: str
-    email: str
-    password: str
-    role: str = "sales"
-    phone_number: Optional[str] = None
+    name: str = Field(..., min_length=2, max_length=100)
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    role: str = Field(..., pattern="^(admin|sales)$")
+    phone_number: Optional[str] = Field(None, max_length=20)
+
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        if not any(c.isupper() for c in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(c.islower() for c in v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one digit')
+        return v
 
 class UserLogin(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(..., min_length=1, max_length=128)
 
 class UserResponse(BaseModel):
     id: str
@@ -71,35 +92,36 @@ class UserResponse(BaseModel):
     status: str = "active"
     last_login: Optional[str] = None
     phone_number: Optional[str] = None
+    created_at: Optional[str] = None
 
 class LeadCreate(BaseModel):
-    first_name: str = Field(alias="firstName")
-    last_name: str = Field(alias="lastName")
-    email: str
-    phone: Optional[str] = None
-    domain: str
-    price: float = 0
-    clicks: int = 0
-    status: str = "new"
-    source: str = "website"
+    first_name: str = Field(alias="firstName", min_length=1, max_length=100)
+    last_name: str = Field(alias="lastName", max_length=100, default="")
+    email: EmailStr
+    phone: Optional[str] = Field(None, max_length=20)
+    domain: str = Field(..., min_length=1, max_length=255)
+    price: float = Field(default=0, ge=0)
+    clicks: int = Field(default=0, ge=0)
+    status: str = Field(default="new", pattern="^(new|contacted|qualified|converted|lost)$")
+    source: str = Field(default="website", pattern="^(website|referral|call|other)$")
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=1000)
 
     class Config:
         populate_by_name = True
 
 class LeadUpdate(BaseModel):
-    first_name: Optional[str] = Field(None, alias="firstName")
-    last_name: Optional[str] = Field(None, alias="lastName")
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    domain: Optional[str] = None
-    price: Optional[float] = None
-    clicks: Optional[int] = None
-    status: Optional[str] = None
-    source: Optional[str] = None
+    first_name: Optional[str] = Field(None, alias="firstName", min_length=1, max_length=100)
+    last_name: Optional[str] = Field(None, alias="lastName", max_length=100)
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = Field(None, max_length=20)
+    domain: Optional[str] = Field(None, min_length=1, max_length=255)
+    price: Optional[float] = Field(None, ge=0)
+    clicks: Optional[int] = Field(None, ge=0)
+    status: Optional[str] = Field(None, pattern="^(new|contacted|qualified|converted|lost)$")
+    source: Optional[str] = Field(None, pattern="^(website|referral|call|other)$")
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(None, max_length=1000)
 
     class Config:
         populate_by_name = True
@@ -124,95 +146,158 @@ class LeadResponse(BaseModel):
         populate_by_name = True
 
 class BulkDeleteRequest(BaseModel):
-    ids: List[str]
+    ids: List[str] = Field(..., min_items=1)
 
 class BulkAssignRequest(BaseModel):
-    ids: List[str]
-    sales_person_id: str = Field(alias="salesPersonId")
+    ids: List[str] = Field(..., min_items=1)
+    sales_person_id: str = Field(alias="salesPersonId", min_length=1)
 
     class Config:
         populate_by_name = True
 
-# Management Models
-class BrandCreate(BaseModel):
-    name: str
-    logo: Optional[str] = None
-    description: Optional[str] = None
-    status: str = "active"
-    defaultSalesperson: Optional[str] = None
-
-class ProductCreate(BaseModel):
-    name: str
-    sku: Optional[str] = None
-    price: Optional[float] = None
-    brandId: Optional[int] = None
-    status: str = "active"
-
-class LocationCreate(BaseModel):
-    name: str
-    region: Optional[str] = None
-    currency: Optional[str] = None
-    assignedTo: Optional[str] = None
-    parentId: Optional[int] = None
-    status: str = "active"
-
-class StatusCreate(BaseModel):
-    name: str
-    color: str = "#6366f1"
-    isLocked: bool = False
-    order: int = 0
-
-class SourceCreate(BaseModel):
-    name: str
-    status: str = "active"
-
-class OwnershipCreate(BaseModel):
-    name: str
-    condition: dict
-    salesPersonId: str
-    isActive: bool = True
-
-# Helper functions
+# Security helper functions
 def hash_password(password: str) -> str:
+    """Hash password with bcrypt"""
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password against hash"""
     return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    """Create JWT access token"""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(hours=24)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm="HS256")
+        expire = datetime.utcnow() + timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS)
+    
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.utcnow(),
+        "type": "access"
+    })
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
     return encoded_jwt
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    try:
-        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=["HS256"])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
+async def get_login_attempts(email: str) -> dict:
+    """Get login attempts for an email"""
+    return await login_attempts_collection.find_one({"email": email}) or {
+        "email": email,
+        "attempts": 0,
+        "locked_until": None,
+        "last_attempt": None
+    }
+
+async def record_login_attempt(email: str, success: bool, ip_address: str = None):
+    """Record login attempt"""
+    now = datetime.utcnow()
+    
+    if success:
+        # Reset attempts on successful login
+        await login_attempts_collection.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    "attempts": 0,
+                    "locked_until": None,
+                    "last_successful_login": now,
+                    "last_ip": ip_address
+                }
+            },
+            upsert=True
+        )
+    else:
+        # Increment failed attempts
+        attempts_doc = await get_login_attempts(email)
+        new_attempts = attempts_doc["attempts"] + 1
+        
+        update_data = {
+            "attempts": new_attempts,
+            "last_attempt": now,
+            "last_ip": ip_address
+        }
+        
+        # Lock account if max attempts reached
+        if new_attempts >= MAX_LOGIN_ATTEMPTS:
+            update_data["locked_until"] = now + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+        
+        await login_attempts_collection.update_one(
+            {"email": email},
+            {"$set": update_data},
+            upsert=True
+        )
+
+async def is_account_locked(email: str) -> bool:
+    """Check if account is locked due to failed attempts"""
+    attempts_doc = await get_login_attempts(email)
+    
+    if attempts_doc.get("locked_until"):
+        if datetime.utcnow() < attempts_doc["locked_until"]:
+            return True
+        else:
+            # Unlock expired lock
+            await login_attempts_collection.update_one(
+                {"email": email},
+                {
+                    "$set": {
+                        "attempts": 0,
+                        "locked_until": None
+                    }
+                }
             )
-    except jwt.PyJWTError:
+    
+    return False
+
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get current authenticated user"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        token_type: str = payload.get("type")
+        
+        if user_id is None or token_type != "access":
+            raise credentials_exception
+            
+    except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail="Token has expired",
+            headers={"WWW-Authenticate": "Bearer"},
         )
+    except jwt.PyJWTError:
+        raise credentials_exception
     
     user = await users_collection.find_one({"_id": ObjectId(user_id)})
     if user is None:
+        raise credentials_exception
+    
+    # Check if user is still active
+    if user.get("status") != "active":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
+            detail="User account is disabled",
         )
+    
     return user
 
+async def get_admin_user(current_user: dict = Depends(get_current_user)):
+    """Ensure current user is admin"""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
 def format_user_response(user: dict) -> dict:
+    """Format user response"""
     return {
         "id": str(user["_id"]),
         "name": user["name"],
@@ -220,10 +305,12 @@ def format_user_response(user: dict) -> dict:
         "role": user["role"],
         "status": user.get("status", "active"),
         "last_login": user.get("last_login"),
-        "phone_number": user.get("phone_number")
+        "phone_number": user.get("phone_number"),
+        "created_at": user.get("created_at")
     }
 
 def format_lead_response(lead: dict) -> dict:
+    """Format lead response"""
     return {
         "id": str(lead["_id"]),
         "firstName": lead["first_name"],
@@ -259,6 +346,8 @@ async def startup_event():
     await users_collection.create_index("email", unique=True)
     await leads_collection.create_index("email")
     await leads_collection.create_index("domain")
+    await login_attempts_collection.create_index("email", unique=True)
+    await login_attempts_collection.create_index("locked_until", expireAfterSeconds=0)
     
     # Create default admin user if it doesn't exist
     admin_user = await users_collection.find_one({"email": "admin@lead.com"})
@@ -266,24 +355,58 @@ async def startup_event():
         admin_data = {
             "name": "Admin User",
             "email": "admin@lead.com",
-            "password": hash_password("password"),
+            "password": hash_password("AdminPass123!"),
             "role": "admin",
             "status": "active",
             "created_at": datetime.utcnow().isoformat(),
-            "last_login": datetime.now().strftime("%b %d, %Y")
+            "last_login": None,
+            "phone_number": "+1234567890"
         }
         await users_collection.insert_one(admin_data)
-        print("Default admin user created: admin@lead.com / password")
+        print("Default admin user created: admin@lead.com / AdminPass123!")
 
 # Auth endpoints
 @app.post("/auth/login")
 async def login(user_data: UserLogin):
-    user = await users_collection.find_one({"email": user_data.email})
+    """Authenticate user login"""
+    email = user_data.email.lower()
+    
+    # Check if account is locked
+    if await is_account_locked(email):
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail=f"Account locked due to too many failed attempts. Try again in {LOCKOUT_DURATION_MINUTES} minutes."
+        )
+    
+    # Find user
+    user = await users_collection.find_one({"email": email})
+    
+    # Verify credentials
     if not user or not verify_password(user_data.password, user["password"]):
+        await record_login_attempt(email, False)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
+    
+    # Check if user is admin
+    if user.get("role") != "admin":
+        await record_login_attempt(email, False)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required. Only administrators can access this system."
+        )
+    
+    # Check if user is active
+    if user.get("status") != "active":
+        await record_login_attempt(email, False)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is disabled"
+        )
+    
+    # Record successful login
+    await record_login_attempt(email, True)
     
     # Update last login
     await users_collection.update_one(
@@ -291,7 +414,9 @@ async def login(user_data: UserLogin):
         {"$set": {"last_login": datetime.now().strftime("%b %d, %Y")}}
     )
     
+    # Create access token
     access_token = create_access_token(data={"sub": str(user["_id"])})
+    
     return {
         "success": True,
         "data": {
@@ -303,6 +428,7 @@ async def login(user_data: UserLogin):
 
 @app.get("/auth/me")
 async def get_current_user_info(current_user: dict = Depends(get_current_user)):
+    """Get current user information"""
     return {
         "success": True,
         "data": format_user_response(current_user)
@@ -310,11 +436,13 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
 
 @app.post("/auth/logout")
 async def logout(current_user: dict = Depends(get_current_user)):
+    """Logout user"""
     return {"success": True, "message": "Logged out successfully"}
 
-# User endpoints
+# User endpoints (Admin only)
 @app.get("/users")
-async def get_users(current_user: dict = Depends(get_current_user)):
+async def get_users(current_user: dict = Depends(get_admin_user)):
+    """Get all users (Admin only)"""
     users = await users_collection.find({}).to_list(None)
     return {
         "success": True,
@@ -322,17 +450,19 @@ async def get_users(current_user: dict = Depends(get_current_user)):
     }
 
 @app.post("/users")
-async def create_user(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
+async def create_user(user_data: UserCreate, current_user: dict = Depends(get_admin_user)):
+    """Create new user (Admin only)"""
     try:
         user_dict = {
             "name": user_data.name,
-            "email": user_data.email,
+            "email": user_data.email.lower(),
             "password": hash_password(user_data.password),
             "role": user_data.role,
             "status": "active",
             "phone_number": user_data.phone_number,
             "created_at": datetime.utcnow().isoformat(),
-            "last_login": None
+            "last_login": None,
+            "created_by": str(current_user["_id"])
         }
         
         result = await users_collection.insert_one(user_dict)
@@ -351,6 +481,7 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_cu
 
 @app.get("/salespeople")
 async def get_salespeople(current_user: dict = Depends(get_current_user)):
+    """Get sales team members"""
     salespeople = await users_collection.find({"role": {"$in": ["sales", "admin"]}}).to_list(None)
     return {
         "success": True,
@@ -360,6 +491,7 @@ async def get_salespeople(current_user: dict = Depends(get_current_user)):
 # Lead endpoints
 @app.get("/leads")
 async def get_leads(current_user: dict = Depends(get_current_user)):
+    """Get all leads"""
     leads = await leads_collection.find({}).to_list(None)
     return {
         "success": True,
@@ -368,10 +500,11 @@ async def get_leads(current_user: dict = Depends(get_current_user)):
 
 @app.post("/leads")
 async def create_lead(lead_data: LeadCreate, current_user: dict = Depends(get_current_user)):
+    """Create new lead"""
     lead_dict = {
         "first_name": lead_data.first_name,
         "last_name": lead_data.last_name,
-        "email": lead_data.email,
+        "email": lead_data.email.lower(),
         "phone": lead_data.phone,
         "domain": lead_data.domain,
         "price": lead_data.price,
@@ -396,6 +529,7 @@ async def create_lead(lead_data: LeadCreate, current_user: dict = Depends(get_cu
 
 @app.put("/leads/{lead_id}")
 async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = Depends(get_current_user)):
+    """Update lead"""
     try:
         object_id = ObjectId(lead_id)
     except:
@@ -413,11 +547,14 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
     db_update_data = {}
     for key, value in update_data.items():
         db_key = field_mapping.get(key, key)
+        if key == "email" and value:
+            value = value.lower()
         db_update_data[db_key] = value
     
     if db_update_data:
         db_update_data["updated_at"] = datetime.utcnow().isoformat()
         db_update_data["update"] = datetime.now().strftime("%b %d")
+        db_update_data["updated_by"] = str(current_user["_id"])
         
         result = await leads_collection.update_one(
             {"_id": object_id},
@@ -436,6 +573,7 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
 
 @app.delete("/leads/{lead_id}")
 async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete lead"""
     try:
         object_id = ObjectId(lead_id)
     except:
@@ -453,6 +591,7 @@ async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_use
 
 @app.post("/leads/bulk-delete")
 async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Depends(get_current_user)):
+    """Bulk delete leads"""
     try:
         object_ids = [ObjectId(id) for id in request.ids]
     except:
@@ -467,6 +606,7 @@ async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Dep
 
 @app.post("/leads/bulk-assign")
 async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Depends(get_current_user)):
+    """Bulk assign leads"""
     try:
         object_ids = [ObjectId(id) for id in request.ids]
     except:
@@ -474,7 +614,13 @@ async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Dep
     
     result = await leads_collection.update_many(
         {"_id": {"$in": object_ids}},
-        {"$set": {"assigned_to": request.sales_person_id, "updated_at": datetime.utcnow().isoformat()}}
+        {
+            "$set": {
+                "assigned_to": request.sales_person_id,
+                "updated_at": datetime.utcnow().isoformat(),
+                "updated_by": str(current_user["_id"])
+            }
+        }
     )
     
     return {
@@ -482,9 +628,10 @@ async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Dep
         "message": f"{result.modified_count} leads assigned successfully"
     }
 
-# Management endpoints
+# Management endpoints (Admin only)
 @app.get("/management/{item_type}")
-async def get_management_items(item_type: str, current_user: dict = Depends(get_current_user)):
+async def get_management_items(item_type: str, current_user: dict = Depends(get_admin_user)):
+    """Get management items (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -506,7 +653,8 @@ async def get_management_items(item_type: str, current_user: dict = Depends(get_
     }
 
 @app.post("/management/{item_type}")
-async def create_management_item(item_type: str, item_data: dict, current_user: dict = Depends(get_current_user)):
+async def create_management_item(item_type: str, item_data: dict, current_user: dict = Depends(get_admin_user)):
+    """Create management item (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -542,7 +690,8 @@ async def create_management_item(item_type: str, item_data: dict, current_user: 
         )
 
 @app.put("/management/{item_type}/{item_id}")
-async def update_management_item(item_type: str, item_id: str, item_data: dict, current_user: dict = Depends(get_current_user)):
+async def update_management_item(item_type: str, item_id: str, item_data: dict, current_user: dict = Depends(get_admin_user)):
+    """Update management item (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -594,7 +743,8 @@ async def update_management_item(item_type: str, item_id: str, item_data: dict, 
         )
 
 @app.delete("/management/{item_type}/{item_id}")
-async def delete_management_item(item_type: str, item_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_management_item(item_type: str, item_id: str, current_user: dict = Depends(get_admin_user)):
+    """Delete management item (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -633,6 +783,7 @@ async def delete_management_item(item_type: str, item_id: str, current_user: dic
 # Health check
 @app.get("/health")
 async def health_check():
+    """Health check endpoint"""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 if __name__ == "__main__":

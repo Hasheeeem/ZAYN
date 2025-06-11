@@ -36,14 +36,31 @@ class ApiService {
         headers,
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Handle specific HTTP status codes
+        if (response.status === 401) {
+          this.clearToken();
+          throw new Error(data.detail || 'Authentication failed');
+        } else if (response.status === 403) {
+          throw new Error(data.detail || 'Access forbidden - Admin rights required');
+        } else if (response.status === 423) {
+          throw new Error(data.detail || 'Account locked');
+        } else {
+          throw new Error(data.detail || `HTTP error! status: ${response.status}`);
+        }
       }
 
-      const data = await response.json();
       return data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('API request failed:', error);
+      
+      // Re-throw with more specific error messages
+      if (error.message.includes('Failed to fetch')) {
+        throw new Error('Unable to connect to server. Please check your internet connection.');
+      }
+      
       throw error;
     }
   }
