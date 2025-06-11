@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings2, Package, MapPin, Tags, Share2, Users } from 'lucide-react';
 import ActionButton from '../components/ActionButton';
 import DataTable from '../components/DataTable';
@@ -6,10 +6,10 @@ import Modal from '../components/Modal';
 import SearchFilter from '../components/SearchFilter';
 import { useNotification } from '../context/NotificationContext';
 import { useData } from '../context/DataContext';
-import codes from 'currency-codes';
+import apiService from '../services/api';
 
 interface Brand {
-  id: number;
+  id: number | string;
   name: string;
   logo?: string;
   defaultSalesperson?: string;
@@ -18,7 +18,7 @@ interface Brand {
 }
 
 interface Product {
-  id: number;
+  id: number | string;
   name: string;
   sku: string;
   price?: number;
@@ -27,20 +27,38 @@ interface Product {
 }
 
 interface Location {
-  id: number;
+  id: number | string;
   name: string;
   region: string;
+  currency?: string;
   assignedTo?: string;
   parentId?: number;
   status: 'active' | 'inactive';
 }
 
 interface LeadStatus {
-  id: number;
+  id: number | string;
   name: string;
   color: string;
   isLocked: boolean;
   order: number;
+}
+
+interface LeadSource {
+  id: number | string;
+  name: string;
+  status: 'active' | 'inactive';
+}
+
+interface OwnershipRule {
+  id: number | string;
+  name: string;
+  condition: {
+    type: 'location' | 'brand';
+    value: string;
+  };
+  salesPersonId: string;
+  isActive: boolean;
 }
 
 const LEAD_SOURCES = [
@@ -76,53 +94,8 @@ const CURRENCIES = [
   { code: 'RUB', name: 'Russian Ruble', flag: '🇷🇺' },
   { code: 'INR', name: 'Indian Rupee', flag: '🇮🇳' },
   { code: 'BRL', name: 'Brazilian Real', flag: '🇧🇷' },
-  { code: 'ZAR', name: 'South African Rand', flag: '🇿🇦' },
-  { code: 'PLN', name: 'Polish Zloty', flag: '🇵🇱' },
-  { code: 'ILS', name: 'Israeli Shekel', flag: '🇮🇱' },
-  { code: 'DKK', name: 'Danish Krone', flag: '🇩🇰' },
-  { code: 'CZK', name: 'Czech Koruna', flag: '🇨🇿' },
-  { code: 'HUF', name: 'Hungarian Forint', flag: '🇭🇺' },
-  { code: 'RON', name: 'Romanian Leu', flag: '🇷🇴' },
-  { code: 'BGN', name: 'Bulgarian Lev', flag: '🇧🇬' },
-  { code: 'HRK', name: 'Croatian Kuna', flag: '🇭🇷' },
-  { code: 'ISK', name: 'Icelandic Krona', flag: '🇮🇸' },
-  { code: 'PHP', name: 'Philippine Peso', flag: '🇵🇭' },
-  { code: 'MYR', name: 'Malaysian Ringgit', flag: '🇲🇾' },
-  { code: 'THB', name: 'Thai Baht', flag: '🇹🇭' },
-  { code: 'IDR', name: 'Indonesian Rupiah', flag: '🇮🇩' },
-  { code: 'AED', name: 'UAE Dirham', flag: '🇦🇪' },
-  { code: 'SAR', name: 'Saudi Riyal', flag: '🇸🇦' },
-  { code: 'EGP', name: 'Egyptian Pound', flag: '🇪🇬' },
-  { code: 'QAR', name: 'Qatari Riyal', flag: '🇶🇦' },
-  { code: 'KWD', name: 'Kuwaiti Dinar', flag: '🇰🇼' },
-  { code: 'BHD', name: 'Bahraini Dinar', flag: '🇧🇭' },
-  { code: 'OMR', name: 'Omani Rial', flag: '🇴🇲' },
-  { code: 'JOD', name: 'Jordanian Dinar', flag: '🇯🇴' },
-  { code: 'LBP', name: 'Lebanese Pound', flag: '🇱🇧' },
-  { code: 'PKR', name: 'Pakistani Rupee', flag: '🇵🇰' },
-  { code: 'BDT', name: 'Bangladeshi Taka', flag: '🇧🇩' },
-  { code: 'LKR', name: 'Sri Lankan Rupee', flag: '🇱🇰' },
-  { code: 'NPR', name: 'Nepalese Rupee', flag: '🇳🇵' },
-  { code: 'AFN', name: 'Afghan Afghani', flag: '🇦🇫' },
-  { code: 'MMK', name: 'Myanmar Kyat', flag: '🇲🇲' },
-  { code: 'VND', name: 'Vietnamese Dong', flag: '🇻🇳' },
-  { code: 'LAK', name: 'Lao Kip', flag: '🇱🇦' },
-  { code: 'KHR', name: 'Cambodian Riel', flag: '🇰🇭' },
-  { code: 'BND', name: 'Brunei Dollar', flag: '🇧🇳' },
-  { code: 'TWD', name: 'Taiwan Dollar', flag: '🇹🇼' },
-  { code: 'MOP', name: 'Macanese Pataca', flag: '🇲🇴' }
+  { code: 'ZAR', name: 'South African Rand', flag: '🇿🇦' }
 ];
-
-interface OwnershipRule {
-  id: number;
-  name: string;
-  condition: {
-    type: 'location' | 'brand';
-    value: string;
-  };
-  salesPersonId: string;
-  isActive: boolean;
-}
 
 const SETTINGS_SECTIONS = [
   { id: 'brands', name: 'Brand Settings', icon: <Settings2 size={20} /> },
@@ -140,6 +113,7 @@ const Management: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
   // State for each section's data
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -149,79 +123,144 @@ const Management: React.FC = () => {
   const [sources, setSources] = useState<LeadSource[]>([]);
   const [ownershipRules, setOwnershipRules] = useState<OwnershipRule[]>([]);
 
-  const handleAdd = (section: string, data: any) => {
-    const newItem = { ...data, id: Date.now() };
-    switch (section) {
-      case 'brands':
-        setBrands([...brands, newItem]);
-        break;
-      case 'products':
-        setProducts([...products, newItem]);
-        break;
-      case 'locations':
-        setLocations([...locations, newItem]);
-        break;
-      case 'statuses':
-        setStatuses([...statuses, newItem]);
-        break;
-      case 'sources':
-        setSources([...sources, newItem]);
-        break;
-      case 'ownership':
-        setOwnershipRules([...ownershipRules, newItem]);
-        break;
+  // Load data when section changes
+  useEffect(() => {
+    loadSectionData(activeSection);
+  }, [activeSection]);
+
+  const loadSectionData = async (section: string) => {
+    setLoading(true);
+    try {
+      const response = await apiService.getManagementData(section);
+      if (response.success) {
+        switch (section) {
+          case 'brands':
+            setBrands(response.data);
+            break;
+          case 'products':
+            setProducts(response.data);
+            break;
+          case 'locations':
+            setLocations(response.data);
+            break;
+          case 'statuses':
+            setStatuses(response.data);
+            break;
+          case 'sources':
+            setSources(response.data);
+            break;
+          case 'ownership':
+            setOwnershipRules(response.data);
+            break;
+        }
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      showNotification('Failed to load data', 'error');
+    } finally {
+      setLoading(false);
     }
-    showNotification(`${section} added successfully`, 'success');
-    setIsModalOpen(false);
   };
 
-  const handleEdit = (section: string, data: any) => {
-    switch (section) {
-      case 'brands':
-        setBrands(brands.map(item => item.id === data.id ? data : item));
-        break;
-      case 'products':
-        setProducts(products.map(item => item.id === data.id ? data : item));
-        break;
-      case 'locations':
-        setLocations(locations.map(item => item.id === data.id ? data : item));
-        break;
-      case 'statuses':
-        setStatuses(statuses.map(item => item.id === data.id ? data : item));
-        break;
-      case 'sources':
-        setSources(sources.map(item => item.id === data.id ? data : item));
-        break;
-      case 'ownership':
-        setOwnershipRules(ownershipRules.map(item => item.id === data.id ? data : item));
-        break;
+  const handleAdd = async (section: string, data: any) => {
+    try {
+      const response = await apiService.createManagementItem(section, data);
+      if (response.success) {
+        // Update local state
+        switch (section) {
+          case 'brands':
+            setBrands([...brands, response.data]);
+            break;
+          case 'products':
+            setProducts([...products, response.data]);
+            break;
+          case 'locations':
+            setLocations([...locations, response.data]);
+            break;
+          case 'statuses':
+            setStatuses([...statuses, response.data]);
+            break;
+          case 'sources':
+            setSources([...sources, response.data]);
+            break;
+          case 'ownership':
+            setOwnershipRules([...ownershipRules, response.data]);
+            break;
+        }
+        showNotification(`${section.slice(0, -1)} added successfully`, 'success');
+        setIsModalOpen(false);
+      }
+    } catch (error) {
+      console.error('Error adding item:', error);
+      showNotification('Failed to add item', 'error');
     }
-    showNotification(`${section} updated successfully`, 'success');
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (section: string, id: number) => {
-    switch (section) {
-      case 'brands':
-        setBrands(brands.filter(item => item.id !== id));
-        break;
-      case 'products':
-        setProducts(products.filter(item => item.id !== id));
-        break;
-      case 'locations':
-        setLocations(locations.filter(item => item.id !== id));
-        break;
-      case 'statuses':
-        setStatuses(statuses.filter(item => item.id !== id));
-        break;
-      case 'sources':
-        setSources(sources.filter(item => item.id !== id));
-        break;
-      case 'ownership':
-        setOwnershipRules(ownershipRules.filter(item => item.id !== id));
-        break;
+  const handleEdit = async (section: string, data: any) => {
+    try {
+      const response = await apiService.updateManagementItem(section, data.id, data);
+      if (response.success) {
+        // Update local state
+        switch (section) {
+          case 'brands':
+            setBrands(brands.map(item => item.id === data.id ? response.data : item));
+            break;
+          case 'products':
+            setProducts(products.map(item => item.id === data.id ? response.data : item));
+            break;
+          case 'locations':
+            setLocations(locations.map(item => item.id === data.id ? response.data : item));
+            break;
+          case 'statuses':
+            setStatuses(statuses.map(item => item.id === data.id ? response.data : item));
+            break;
+          case 'sources':
+            setSources(sources.map(item => item.id === data.id ? response.data : item));
+            break;
+          case 'ownership':
+            setOwnershipRules(ownershipRules.map(item => item.id === data.id ? response.data : item));
+            break;
+        }
+        showNotification(`${section.slice(0, -1)} updated successfully`, 'success');
+        setIsModalOpen(false);
+      }
+    } catch (error) {
+      console.error('Error updating item:', error);
+      showNotification('Failed to update item', 'error');
     }
-    showNotification(`${section} deleted successfully`, 'success');
+  };
+
+  const handleDelete = async (section: string, id: number | string) => {
+    try {
+      const response = await apiService.deleteManagementItem(section, id.toString());
+      if (response.success) {
+        // Update local state
+        switch (section) {
+          case 'brands':
+            setBrands(brands.filter(item => item.id !== id));
+            break;
+          case 'products':
+            setProducts(products.filter(item => item.id !== id));
+            break;
+          case 'locations':
+            setLocations(locations.filter(item => item.id !== id));
+            break;
+          case 'statuses':
+            setStatuses(statuses.filter(item => item.id !== id));
+            break;
+          case 'sources':
+            setSources(sources.filter(item => item.id !== id));
+            break;
+          case 'ownership':
+            setOwnershipRules(ownershipRules.filter(item => item.id !== id));
+            break;
+        }
+        showNotification(`${section.slice(0, -1)} deleted successfully`, 'success');
+      }
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      showNotification('Failed to delete item', 'error');
+    }
   };
 
   const openAddModal = () => {
@@ -259,8 +298,9 @@ const Management: React.FC = () => {
     const commonProps = {
       onAdd: openAddModal,
       onEdit: openEditModal,
-      onDelete: (id: number) => handleDelete(activeSection, id),
-      data: getDataForSection(activeSection)
+      onDelete: (id: number | string) => handleDelete(activeSection, id),
+      data: getDataForSection(activeSection),
+      loading
     };
 
     switch (activeSection) {
@@ -275,7 +315,7 @@ const Management: React.FC = () => {
       case 'sources':
         return <SourceSettings {...commonProps} />;
       case 'ownership':
-        return <OwnershipSettings {...commonProps} />;
+        return <OwnershipSettings {...commonProps} salespeople={salespeople} />;
       default:
         return null;
     }
@@ -347,7 +387,7 @@ const Management: React.FC = () => {
 };
 
 // Brand Settings Component
-const BrandSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
+const BrandSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data, loading }) => {
   const columns = [
     { 
       key: 'name',
@@ -390,6 +430,10 @@ const BrandSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
     }
   ];
 
+  if (loading) {
+    return <div className="text-center py-8">Loading brands...</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -405,7 +449,7 @@ const BrandSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
 };
 
 // Product Settings Component
-const ProductSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
+const ProductSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data, loading }) => {
   const columns = [
     { key: 'name', label: 'Product Name' },
     { key: 'sku', label: 'SKU/Code' },
@@ -434,6 +478,10 @@ const ProductSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
     }
   ];
 
+  if (loading) {
+    return <div className="text-center py-8">Loading products...</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -449,8 +497,7 @@ const ProductSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
 };
 
 // Location Settings Component
-// Location Settings Component
-const LocationSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
+const LocationSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data, loading }) => {
   const columns = [
     { key: 'name', label: 'Location' },
     { 
@@ -484,6 +531,10 @@ const LocationSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
     }
   ];
 
+  if (loading) {
+    return <div className="text-center py-8">Loading locations...</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -498,10 +549,8 @@ const LocationSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
   );
 };
 
-
-
 // Status Settings Component
-const StatusSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
+const StatusSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data, loading }) => {
   const columns = [
     { 
       key: 'name',
@@ -544,6 +593,10 @@ const StatusSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
     }
   ];
 
+  if (loading) {
+    return <div className="text-center py-8">Loading statuses...</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -559,7 +612,7 @@ const StatusSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
 };
 
 // Source Settings Component
-const SourceSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
+const SourceSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data, loading }) => {
   const columns = [
     { key: 'name', label: 'Source' },
     { key: 'status', label: 'Status' },
@@ -585,6 +638,10 @@ const SourceSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
     }
   ];
 
+  if (loading) {
+    return <div className="text-center py-8">Loading sources...</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -600,7 +657,7 @@ const SourceSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
 };
 
 // Ownership Settings Component
-const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => {
+const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data, loading, salespeople }) => {
   const columns = [
     { key: 'name', label: 'Rule Name' },
     { 
@@ -609,7 +666,14 @@ const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => 
       render: (value: { type: string; value: string }) => 
         `${value.type === 'location' ? 'Location' : 'Brand'}: ${value.value}`
     },
-    { key: 'salesPersonId', label: 'Assigned To' },
+    { 
+      key: 'salesPersonId', 
+      label: 'Assigned To',
+      render: (value: string) => {
+        const person = salespeople?.find((p: any) => p.id.toString() === value);
+        return person ? person.name : 'Unknown';
+      }
+    },
     { 
       key: 'isActive',
       label: 'Status',
@@ -643,6 +707,10 @@ const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => 
     }
   ];
 
+  if (loading) {
+    return <div className="text-center py-8">Loading ownership rules...</div>;
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -657,10 +725,10 @@ const OwnershipSettings: React.FC<any> = ({ onAdd, onEdit, onDelete, data }) => 
   );
 };
 
-// Brand Form Component
+// Form Components
 const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<Brand>(initialData || {
-    id: Date.now(),
+    id: '',
     name: '',
     logo: '',
     description: '',
@@ -669,7 +737,6 @@ const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
 
   const handleSubmit = () => {
     if (!form.name) {
-      // Show error notification
       return;
     }
     onSave(form);
@@ -738,11 +805,11 @@ const BrandForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   );
 };
 
-// Product Form Component
 const ProductForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<Product>(initialData || {
-    id: Date.now(),
+    id: '',
     name: '',
+    sku: '',
     price: 0,
     brandId: 0,
     status: 'active'
@@ -750,7 +817,6 @@ const ProductForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => 
 
   const handleSubmit = () => {
     if (!form.name) {
-      // Show error notification
       return;
     }
     onSave(form);
@@ -773,14 +839,25 @@ const ProductForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => 
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Price <span className="text-red-500">*</span>
+          SKU/Code
+        </label>
+        <input
+          type="text"
+          value={form.sku}
+          onChange={(e) => setForm({ ...form, sku: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Price
         </label>
         <input
           type="number"
           value={form.price}
           onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) || 0 })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-          required
         />
       </div>
 
@@ -807,18 +884,17 @@ const ProductForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => 
   );
 };
 
-// Location Form Component
 const LocationForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<Location>(initialData || {
-    id: Date.now(),
+    id: '',
     name: '',
+    region: '',
     currency: '',
     status: 'active'
   });
 
   const handleSubmit = () => {
-    if (!form.name || !form.currency) {
-      // Show error notification
+    if (!form.name) {
       return;
     }
     onSave(form);
@@ -841,13 +917,24 @@ const LocationForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) =>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">
-          Currency <span className="text-red-500">*</span>
+          Region
+        </label>
+        <input
+          type="text"
+          value={form.region}
+          onChange={(e) => setForm({ ...form, region: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Currency
         </label>
         <select
           value={form.currency}
           onChange={(e) => setForm({ ...form, currency: e.target.value })}
           className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-          required
         >
           <option value="">Select Currency</option>
           {CURRENCIES.map(currency => (
@@ -866,11 +953,9 @@ const LocationForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) =>
   );
 };
 
-
-// Status Form Component
 const StatusForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<LeadStatus>(initialData || {
-    id: Date.now(),
+    id: '',
     name: '',
     color: '#6366f1',
     isLocked: false,
@@ -930,17 +1015,15 @@ const StatusForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   );
 };
 
-// Source Form Component
 const SourceForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
   const [form, setForm] = useState<LeadSource>(initialData || {
-    id: Date.now(),
+    id: '',
     name: '',
     status: 'active'
   });
 
   const handleSubmit = () => {
     if (!form.name) {
-      // Show error notification
       return;
     }
     onSave(form);
@@ -989,9 +1072,110 @@ const SourceForm: React.FC<any> = ({ mode, initialData, onSave, onCancel }) => {
     </div>
   );
 };
+
+const OwnershipForm: React.FC<any> = ({ mode, initialData, onSave, onCancel, salespeople }) => {
+  const [form, setForm] = useState<OwnershipRule>(initialData || {
+    id: '',
+    name: '',
+    condition: { type: 'location', value: '' },
+    salesPersonId: '',
+    isActive: true
+  });
+
+  const handleSubmit = () => {
+    if (!form.name || !form.condition.value || !form.salesPersonId) {
+      return;
+    }
+    onSave(form);
+  };
+
+  return (
+    <div className="space-y-4 p-6">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Rule Name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Condition Type <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={form.condition.type}
+          onChange={(e) => setForm({ 
+            ...form, 
+            condition: { ...form.condition, type: e.target.value as 'location' | 'brand' }
+          })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
+        >
+          <option value="location">Location</option>
+          <option value="brand">Brand</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Condition Value <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={form.condition.value}
+          onChange={(e) => setForm({ 
+            ...form, 
+            condition: { ...form.condition, value: e.target.value }
+          })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Assign To <span className="text-red-500">*</span>
+        </label>
+        <select
+          value={form.salesPersonId}
+          onChange={(e) => setForm({ ...form, salesPersonId: e.target.value })}
+          className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+          required
+        >
+          <option value="">Select Salesperson</option>
+          {salespeople?.map((person: any) => (
+            <option key={person.id} value={person.id}>
+              {person.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="isActive"
+          checked={form.isActive}
+          onChange={(e) => setForm({ ...form, isActive: e.target.checked })}
+          className="rounded text-indigo-600"
+        />
+        <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+          Active Rule
+        </label>
+      </div>
+
+      <div className="flex justify-end gap-3 mt-6">
+        <ActionButton label="Cancel" onClick={onCancel} variant="secondary" />
+        <ActionButton label="Save" onClick={handleSubmit} variant="primary" />
+      </div>
+    </div>
+  );
+};
+
 export default Management;
-
-
-
-
-
