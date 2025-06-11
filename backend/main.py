@@ -133,6 +133,45 @@ class BulkAssignRequest(BaseModel):
     class Config:
         populate_by_name = True
 
+# Management Models
+class BrandCreate(BaseModel):
+    name: str
+    logo: Optional[str] = None
+    description: Optional[str] = None
+    status: str = "active"
+    defaultSalesperson: Optional[str] = None
+
+class ProductCreate(BaseModel):
+    name: str
+    sku: Optional[str] = None
+    price: Optional[float] = None
+    brandId: Optional[int] = None
+    status: str = "active"
+
+class LocationCreate(BaseModel):
+    name: str
+    region: Optional[str] = None
+    currency: Optional[str] = None
+    assignedTo: Optional[str] = None
+    parentId: Optional[int] = None
+    status: str = "active"
+
+class StatusCreate(BaseModel):
+    name: str
+    color: str = "#6366f1"
+    isLocked: bool = False
+    order: int = 0
+
+class SourceCreate(BaseModel):
+    name: str
+    status: str = "active"
+
+class OwnershipCreate(BaseModel):
+    name: str
+    condition: dict
+    salesPersonId: str
+    isActive: bool = True
+
 # Helper functions
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -201,6 +240,17 @@ def format_lead_response(lead: dict) -> dict:
         "notes": lead.get("notes"),
         "createdAt": lead["created_at"]
     }
+
+def format_management_response(item: dict) -> dict:
+    """Format management item response"""
+    formatted = {
+        "id": str(item["_id"]),
+    }
+    # Copy all fields except _id
+    for key, value in item.items():
+        if key != "_id":
+            formatted[key] = value
+    return formatted
 
 # Startup event to create indexes and default data
 @app.on_event("startup")
@@ -432,7 +482,7 @@ async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Dep
         "message": f"{result.modified_count} leads assigned successfully"
     }
 
-# Management endpoints (brands, products, etc.)
+# Management endpoints
 @app.get("/management/{item_type}")
 async def get_management_items(item_type: str, current_user: dict = Depends(get_current_user)):
     collection_map = {
@@ -450,14 +500,9 @@ async def get_management_items(item_type: str, current_user: dict = Depends(get_
     collection = collection_map[item_type]
     items = await collection.find({}).to_list(None)
     
-    # Convert ObjectId to string
-    for item in items:
-        item["id"] = str(item["_id"])
-        del item["_id"]
-    
     return {
         "success": True,
-        "data": items
+        "data": [format_management_response(item) for item in items]
     }
 
 @app.post("/management/{item_type}")
@@ -475,18 +520,115 @@ async def create_management_item(item_type: str, item_data: dict, current_user: 
         raise HTTPException(status_code=400, detail="Invalid item type")
     
     collection = collection_map[item_type]
+    
+    # Add metadata
     item_data["created_at"] = datetime.utcnow().isoformat()
     item_data["created_by"] = str(current_user["_id"])
+    item_data["updated_at"] = datetime.utcnow().isoformat()
     
-    result = await collection.insert_one(item_data)
-    item_data["id"] = str(result.inserted_id)
-    del item_data["_id"]
-    
-    return {
-        "success": True,
-        "data": item_data,
-        "message": f"{item_type.capitalize()} item created successfully"
+    try:
+        result = await collection.insert_one(item_data)
+        item_data["_id"] = result.inserted_id
+        
+        return {
+            "success": True,
+            "data": format_management_response(item_data),
+            "message": f"{item_type.capitalize()[:-1]} created successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create {item_type[:-1]}: {str(e)}"
+        )
+
+@app.put("/management/{item_type}/{item_id}")
+async def update_management_item(item_type: str, item_id: str, item_data: dict, current_user: dict = Depends(get_current_user)):
+    collection_map = {
+        "brands": brands_collection,
+        "products": products_collection,
+        "locations": locations_collection,
+        "statuses": statuses_collection,
+        "sources": sources_collection,
+        "ownership": ownership_collection
     }
+    
+    if item_type not in collection_map:
+        raise HTTPException(status_code=400, detail="Invalid item type")
+    
+    try:
+        object_id = ObjectId(item_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid item ID")
+    
+    collection = collection_map[item_type]
+    
+    # Add update metadata
+    item_data["updated_at"] = datetime.utcnow().isoformat()
+    item_data["updated_by"] = str(current_user["_id"])
+    
+    # Remove id from update data if present
+    if "id" in item_data:
+        del item_data["id"]
+    
+    try:
+        result = await collection.update_one(
+            {"_id": object_id},
+            {"$set": item_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail=f"{item_type.capitalize()[:-1]} not found")
+        
+        # Get updated item
+        updated_item = await collection.find_one({"_id": object_id})
+        
+        return {
+            "success": True,
+            "data": format_management_response(updated_item),
+            "message": f"{item_type.capitalize()[:-1]} updated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to update {item_type[:-1]}: {str(e)}"
+        )
+
+@app.delete("/management/{item_type}/{item_id}")
+async def delete_management_item(item_type: str, item_id: str, current_user: dict = Depends(get_current_user)):
+    collection_map = {
+        "brands": brands_collection,
+        "products": products_collection,
+        "locations": locations_collection,
+        "statuses": statuses_collection,
+        "sources": sources_collection,
+        "ownership": ownership_collection
+    }
+    
+    if item_type not in collection_map:
+        raise HTTPException(status_code=400, detail="Invalid item type")
+    
+    try:
+        object_id = ObjectId(item_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid item ID")
+    
+    collection = collection_map[item_type]
+    
+    try:
+        result = await collection.delete_one({"_id": object_id})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail=f"{item_type.capitalize()[:-1]} not found")
+        
+        return {
+            "success": True,
+            "message": f"{item_type.capitalize()[:-1]} deleted successfully"
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to delete {item_type[:-1]}: {str(e)}"
+        )
 
 # Health check
 @app.get("/health")
