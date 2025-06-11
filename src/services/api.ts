@@ -1,4 +1,4 @@
-import apiConfig from '../config/api';
+import apiConfig, { testApiConnection } from '../config/api';
 
 interface ApiResponse<T> {
   data: T;
@@ -31,34 +31,48 @@ class ApiService {
     }
 
     try {
+      console.log(`Making API request to: ${url}`);
+      
       const response = await fetch(url, {
         ...options,
         headers,
       });
 
-      const data = await response.json();
+      console.log(`API response status: ${response.status}`);
 
       if (!response.ok) {
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          // If we can't parse the error response, use the default message
+        }
+
         // Handle specific HTTP status codes
         if (response.status === 401) {
           this.clearToken();
-          throw new Error(data.detail || 'Authentication failed');
+          throw new Error(errorMessage || 'Authentication failed');
         } else if (response.status === 403) {
-          throw new Error(data.detail || 'Access forbidden - Admin rights required');
+          throw new Error(errorMessage || 'Access forbidden - Admin rights required');
         } else if (response.status === 423) {
-          throw new Error(data.detail || 'Account locked');
+          throw new Error(errorMessage || 'Account locked');
         } else {
-          throw new Error(data.detail || `HTTP error! status: ${response.status}`);
+          throw new Error(errorMessage);
         }
       }
 
+      const data = await response.json();
+      console.log('API response data:', data);
+      
       return data;
     } catch (error: any) {
       console.error('API request failed:', error);
       
       // Re-throw with more specific error messages
-      if (error.message.includes('Failed to fetch')) {
-        throw new Error('Unable to connect to server. Please check your internet connection.');
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        throw new Error('Unable to connect to server. Please ensure the backend is running on http://localhost:8000');
       }
       
       throw error;
@@ -75,8 +89,15 @@ class ApiService {
     localStorage.removeItem('auth_token');
   }
 
+  // Test API connection
+  async testConnection(): Promise<boolean> {
+    return testApiConnection();
+  }
+
   // Auth methods
   async login(email: string, password: string) {
+    console.log('Attempting login with:', { email, password: '***' });
+    
     const response = await this.request<{ access_token: string; user: any }>(
       apiConfig.endpoints.auth.login,
       {

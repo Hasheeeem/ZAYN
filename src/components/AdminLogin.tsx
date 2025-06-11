@@ -1,15 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Eye, EyeOff, AlertTriangle } from 'lucide-react';
+import { Shield, Eye, EyeOff, AlertTriangle, Wifi, WifiOff } from 'lucide-react';
+import apiService from '../services/api';
 
 const AdminLogin: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@lead.com');
+  const [password, setPassword] = useState('AdminPass123!');
   const [showPassword, setShowPassword] = useState(false);
+  const [apiConnected, setApiConnected] = useState<boolean | null>(null);
   const { authState, login } = useAuth();
+
+  useEffect(() => {
+    // Test API connection on component mount
+    const testConnection = async () => {
+      const connected = await apiService.testConnection();
+      setApiConnected(connected);
+    };
+    
+    testConnection();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!apiConnected) {
+      return;
+    }
+    
     await login(email, password);
   };
 
@@ -23,7 +40,16 @@ const AdminLogin: React.FC = () => {
     if (error.includes('disabled')) {
       return 'Your account has been disabled. Please contact your system administrator.';
     }
+    if (error.includes('Unable to connect to server')) {
+      return 'Cannot connect to the backend server. Please ensure the backend is running on http://localhost:8000';
+    }
     return error;
+  };
+
+  const retryConnection = async () => {
+    setApiConnected(null);
+    const connected = await apiService.testConnection();
+    setApiConnected(connected);
   };
 
   return (
@@ -40,6 +66,37 @@ const AdminLogin: React.FC = () => {
             <p className="text-indigo-200 text-sm mt-1">Secure login required</p>
           </div>
         </div>
+
+        {/* API Connection Status */}
+        <div className="px-8 pt-6">
+          <div className={`flex items-center gap-2 p-3 rounded-lg ${
+            apiConnected === null ? 'bg-yellow-50 border border-yellow-200' :
+            apiConnected ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+          }`}>
+            {apiConnected === null ? (
+              <>
+                <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-yellow-700 text-sm">Testing connection...</span>
+              </>
+            ) : apiConnected ? (
+              <>
+                <Wifi size={16} className="text-green-600" />
+                <span className="text-green-700 text-sm">Backend connected</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={16} className="text-red-600" />
+                <span className="text-red-700 text-sm">Backend disconnected</span>
+                <button
+                  onClick={retryConnection}
+                  className="ml-auto text-red-600 hover:text-red-800 text-sm underline"
+                >
+                  Retry
+                </button>
+              </>
+            )}
+          </div>
+        </div>
         
         <form onSubmit={handleSubmit} className="p-8">
           {authState.error && (
@@ -49,6 +106,15 @@ const AdminLogin: React.FC = () => {
                 <p className="text-red-800 text-sm font-medium">Authentication Failed</p>
                 <p className="text-red-700 text-sm mt-1">{getErrorMessage(authState.error)}</p>
               </div>
+            </div>
+          )}
+
+          {!apiConnected && apiConnected !== null && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-800 text-sm font-medium">Backend Server Not Available</p>
+              <p className="text-red-700 text-sm mt-1">
+                Please start the backend server by running: <code className="bg-red-100 px-1 rounded">npm run backend</code>
+              </p>
             </div>
           )}
           
@@ -65,7 +131,7 @@ const AdminLogin: React.FC = () => {
               placeholder="admin@lead.com"
               required
               autoComplete="email"
-              disabled={authState.loading}
+              disabled={authState.loading || !apiConnected}
             />
           </div>
           
@@ -83,13 +149,13 @@ const AdminLogin: React.FC = () => {
                 placeholder="Enter your secure password"
                 required
                 autoComplete="current-password"
-                disabled={authState.loading}
+                disabled={authState.loading || !apiConnected}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                disabled={authState.loading}
+                disabled={authState.loading || !apiConnected}
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -98,7 +164,7 @@ const AdminLogin: React.FC = () => {
           
           <button
             type="submit"
-            disabled={authState.loading}
+            disabled={authState.loading || !apiConnected}
             className="w-full bg-gradient-to-r from-indigo-600 to-purple-700 text-white py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition duration-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
           >
             {authState.loading ? (

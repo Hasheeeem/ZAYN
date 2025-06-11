@@ -25,7 +25,7 @@ app = FastAPI(title="ZownLead CRM API", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://localhost:5173", "http://localhost:3000"],
+    allow_origins=["http://localhost:5173", "https://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,11 +43,23 @@ ACCESS_TOKEN_EXPIRE_HOURS = 24
 MAX_LOGIN_ATTEMPTS = 5
 LOCKOUT_DURATION_MINUTES = 30
 
-if not MONGODB_CONNECTION_STRING:
-    raise ValueError("MONGODB_CONNECTION_STRING environment variable is required")
+print(f"MongoDB Connection String: {MONGODB_CONNECTION_STRING}")
+print(f"JWT Secret: {JWT_SECRET[:10]}...")
 
-client = AsyncIOMotorClient(MONGODB_CONNECTION_STRING)
-db = client.crm_database
+if not MONGODB_CONNECTION_STRING:
+    print("WARNING: MONGODB_CONNECTION_STRING environment variable is not set!")
+    print("Please set it in your .env file")
+    # For development, we'll use a default connection string
+    MONGODB_CONNECTION_STRING = "mongodb://localhost:27017/zownlead_crm"
+    print(f"Using default connection string: {MONGODB_CONNECTION_STRING}")
+
+try:
+    client = AsyncIOMotorClient(MONGODB_CONNECTION_STRING)
+    db = client.crm_database
+    print("MongoDB client created successfully")
+except Exception as e:
+    print(f"Error creating MongoDB client: {e}")
+    raise
 
 # Collections
 users_collection = db.users
@@ -342,28 +354,63 @@ def format_management_response(item: dict) -> dict:
 # Startup event to create indexes and default data
 @app.on_event("startup")
 async def startup_event():
-    # Create indexes
-    await users_collection.create_index("email", unique=True)
-    await leads_collection.create_index("email")
-    await leads_collection.create_index("domain")
-    await login_attempts_collection.create_index("email", unique=True)
-    await login_attempts_collection.create_index("locked_until", expireAfterSeconds=0)
+    print("Starting up application...")
     
-    # Create default admin user if it doesn't exist
-    admin_user = await users_collection.find_one({"email": "admin@lead.com"})
-    if not admin_user:
-        admin_data = {
-            "name": "Admin User",
-            "email": "admin@lead.com",
-            "password": hash_password("AdminPass123!"),
-            "role": "admin",
-            "status": "active",
-            "created_at": datetime.utcnow().isoformat(),
-            "last_login": None,
-            "phone_number": "+1234567890"
+    try:
+        # Test database connection
+        await client.admin.command('ping')
+        print("MongoDB connection successful!")
+        
+        # Create indexes
+        await users_collection.create_index("email", unique=True)
+        await leads_collection.create_index("email")
+        await leads_collection.create_index("domain")
+        await login_attempts_collection.create_index("email", unique=True)
+        await login_attempts_collection.create_index("locked_until", expireAfterSeconds=0)
+        print("Database indexes created successfully!")
+        
+        # Create default admin user if it doesn't exist
+        admin_user = await users_collection.find_one({"email": "admin@lead.com"})
+        if not admin_user:
+            admin_data = {
+                "name": "Admin User",
+                "email": "admin@lead.com",
+                "password": hash_password("AdminPass123!"),
+                "role": "admin",
+                "status": "active",
+                "created_at": datetime.utcnow().isoformat(),
+                "last_login": None,
+                "phone_number": "+1234567890"
+            }
+            result = await users_collection.insert_one(admin_data)
+            print(f"Default admin user created with ID: {result.inserted_id}")
+            print("Default admin credentials: admin@lead.com / AdminPass123!")
+        else:
+            print("Default admin user already exists")
+            
+    except Exception as e:
+        print(f"Startup error: {e}")
+        raise
+
+# Health check
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    try:
+        # Test database connection
+        await client.admin.command('ping')
+        return {
+            "status": "healthy", 
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "connected"
         }
-        await users_collection.insert_one(admin_data)
-        print("Default admin user created: admin@lead.com / AdminPass123!")
+    except Exception as e:
+        return {
+            "status": "unhealthy", 
+            "timestamp": datetime.utcnow().isoformat(),
+            "database": "disconnected",
+            "error": str(e)
+        }
 
 # Auth endpoints
 @app.post("/auth/login")
@@ -371,8 +418,11 @@ async def login(user_data: UserLogin):
     """Authenticate user login"""
     email = user_data.email.lower()
     
+    print(f"Login attempt for email: {email}")
+    
     # Check if account is locked
     if await is_account_locked(email):
+        print(f"Account locked for email: {email}")
         raise HTTPException(
             status_code=status.HTTP_423_LOCKED,
             detail=f"Account locked due to too many failed attempts. Try again in {LOCKOUT_DURATION_MINUTES} minutes."
@@ -380,17 +430,22 @@ async def login(user_data: UserLogin):
     
     # Find user
     user = await users_collection.find_one({"email": email})
+    print(f"User found: {user is not None}")
     
     # Verify credentials
     if not user or not verify_password(user_data.password, user["password"]):
+        print("Invalid credentials")
         await record_login_attempt(email, False)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
     
+    print(f"User role: {user.get('role')}")
+    
     # Check if user is admin
     if user.get("role") != "admin":
+        print("Non-admin user attempted login")
         await record_login_attempt(email, False)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -399,6 +454,7 @@ async def login(user_data: UserLogin):
     
     # Check if user is active
     if user.get("status") != "active":
+        print("Inactive user attempted login")
         await record_login_attempt(email, False)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -416,6 +472,8 @@ async def login(user_data: UserLogin):
     
     # Create access token
     access_token = create_access_token(data={"sub": str(user["_id"])})
+    
+    print("Login successful")
     
     return {
         "success": True,
@@ -779,12 +837,6 @@ async def delete_management_item(item_type: str, item_id: str, current_user: dic
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to delete {item_type[:-1]}: {str(e)}"
         )
-
-# Health check
-@app.get("/health")
-async def health_check():
-    """Health check endpoint"""
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
