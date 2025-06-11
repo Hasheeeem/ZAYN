@@ -31,53 +31,22 @@ const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    const focusableElements = modalRef.current?.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
-    const firstFocusable = focusableElements?.[0] as HTMLElement;
-    const lastFocusable = focusableElements?.[focusableElements.length - 1] as HTMLElement;
-
-    const handleTabKey = (e: KeyboardEvent) => {
-      if (e.key === 'Tab') {
-        if (e.shiftKey) {
-          if (document.activeElement === firstFocusable) {
-            e.preventDefault();
-            lastFocusable?.focus();
-          }
-        } else {
-          if (document.activeElement === lastFocusable) {
-            e.preventDefault();
-            firstFocusable?.focus();
-          }
-        }
-      }
-    };
-
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !preventClose) {
         onClose();
       }
     };
 
-    document.addEventListener('keydown', handleTabKey);
     document.addEventListener('keydown', handleEscape);
-
-    // Focus the specified element or the first focusable element
-    if (initialFocus?.current) {
-      initialFocus.current.focus();
-    } else {
-      firstFocusable?.focus();
-    }
 
     // Prevent body scroll
     document.body.style.overflow = 'hidden';
 
     return () => {
-      document.removeEventListener('keydown', handleTabKey);
       document.removeEventListener('keydown', handleEscape);
       document.body.style.overflow = '';
     };
-  }, [isOpen, onClose, preventClose, initialFocus]);
+  }, [isOpen, onClose, preventClose]);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !preventClose) {
@@ -116,6 +85,7 @@ const Modal: React.FC<ModalProps> = ({
         ref={modalRef}
         className={`bg-white rounded-xl shadow-2xl w-full ${getSizeClass()} overflow-hidden animate-modalSlideIn`}
         role="document"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4 flex justify-between items-center text-white">
           <h2 id="modal-title" className="text-xl font-light">{title}</h2>
@@ -124,6 +94,7 @@ const Modal: React.FC<ModalProps> = ({
               onClick={onClose}
               className="text-white/70 hover:text-white transition-colors p-1 rounded-full hover:bg-white/10"
               aria-label="Close modal"
+              type="button"
             >
               <X size={24} />
             </button>

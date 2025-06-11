@@ -7,64 +7,130 @@ import SearchFilter from '../components/SearchFilter';
 import { useData } from '../context/DataContext';
 import { useNotification } from '../context/NotificationContext';
 import { User } from '../types/data';
+import apiService from '../services/api';
 
 interface NewUserFormData {
-  username: string;
+  name: string;
   password: string;
   email: string;
-  phoneNumber: string;
+  phone_number: string;
   role: 'admin' | 'sales';
 }
 
 const UserSettings: React.FC = () => {
-  const { managementUsers } = useData();
+  const { managementUsers, refreshData } = useData();
   const { showNotification } = useNotification();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [newUserForm, setNewUserForm] = useState<NewUserFormData>({
-    username: '',
+    name: '',
     password: '',
     email: '',
-    phoneNumber: '',
+    phone_number: '',
     role: 'sales'
   });
 
-  const handleAddUser = () => {
+  const handleAddUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     // Validate form
-    if (!newUserForm.username || !newUserForm.password || !newUserForm.email || !newUserForm.phoneNumber) {
+    if (!newUserForm.name || !newUserForm.password || !newUserForm.email || !newUserForm.phone_number) {
       showNotification('Please fill in all required fields', 'error');
       return;
     }
 
-    // Simulate API call
-    setTimeout(() => {
-      showNotification('User added successfully', 'success');
-      setIsAddModalOpen(false);
-      setNewUserForm({
-        username: '',
-        password: '',
-        email: '',
-        phoneNumber: '',
-        role: 'sales'
-      });
-    }, 1000);
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUserForm.email)) {
+      showNotification('Please enter a valid email address', 'error');
+      return;
+    }
+
+    // Validate password length
+    if (newUserForm.password.length < 6) {
+      showNotification('Password must be at least 6 characters long', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiService.createUser(newUserForm);
+      
+      if (response.success) {
+        showNotification('User added successfully', 'success');
+        setIsAddModalOpen(false);
+        setNewUserForm({
+          name: '',
+          password: '',
+          email: '',
+          phone_number: '',
+          role: 'sales'
+        });
+        // Refresh the data to show the new user
+        await refreshData();
+      } else {
+        showNotification(response.message || 'Failed to create user', 'error');
+      }
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      if (error.message?.includes('400')) {
+        showNotification('Email already exists or invalid data', 'error');
+      } else {
+        showNotification('Failed to create user. Please try again.', 'error');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleUpdateUser = (userId: number, updates: Partial<User>) => {
-    // Simulate API call
-    setTimeout(() => {
-      showNotification('User updated successfully', 'success');
-      setIsEditModalOpen(false);
-      setSelectedUser(null);
-    }, 1000);
+  const handleUpdateUser = async (userId: number, updates: Partial<User>) => {
+    setIsLoading(true);
+    try {
+      const response = await apiService.updateUser(userId.toString(), updates);
+      
+      if (response.success) {
+        showNotification('User updated successfully', 'success');
+        setIsEditModalOpen(false);
+        setSelectedUser(null);
+        // Refresh the data to show the updated user
+        await refreshData();
+      } else {
+        showNotification(response.message || 'Failed to update user', 'error');
+      }
+    } catch (error) {
+      console.error('Error updating user:', error);
+      showNotification('Failed to update user. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleToggleStatus = (userId: number, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     handleUpdateUser(userId, { status: newStatus as 'active' | 'inactive' });
+  };
+
+  const handleInputChange = (field: keyof NewUserFormData, value: string) => {
+    setNewUserForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleCloseAddModal = () => {
+    setIsAddModalOpen(false);
+    setNewUserForm({
+      name: '',
+      password: '',
+      email: '',
+      phone_number: '',
+      role: 'sales'
+    });
   };
 
   const columns = [
@@ -81,7 +147,11 @@ const UserSettings: React.FC = () => {
       )
     },
     { key: 'email', label: 'Email' },
-    { key: 'phoneNumber', label: 'Phone Number' },
+    { 
+      key: 'phone_number', 
+      label: 'Phone Number',
+      render: (value: string) => value || 'Not provided'
+    },
     { 
       key: 'role',
       label: 'Role',
@@ -89,7 +159,11 @@ const UserSettings: React.FC = () => {
         <span className="capitalize">{value}</span>
       )
     },
-    { key: 'lastLogin', label: 'Last Login' },
+    { 
+      key: 'lastLogin', 
+      label: 'Last Login',
+      render: (value: string) => value || 'Never'
+    },
     { 
       key: 'status',
       label: 'Status',
@@ -166,112 +240,141 @@ const UserSettings: React.FC = () => {
 
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+        onClose={handleCloseAddModal}
         title="Add New User"
+        size="md"
+        preventClose={isLoading}
       >
-        <div className="p-6">
+        <form onSubmit={handleAddUser} className="p-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Username <span className="text-red-500">*</span>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                Full Name <span className="text-red-500">*</span>
               </label>
               <input
+                id="name"
                 type="text"
-                value={newUserForm.username}
-                onChange={(e) => setNewUserForm({ ...newUserForm, username: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                placeholder="Enter username"
+                value={newUserForm.name}
+                onChange={(e) => handleInputChange('name', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                placeholder="Enter full name"
                 required
+                disabled={isLoading}
+                autoComplete="off"
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="password"
-                value={newUserForm.password}
-                onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                placeholder="Enter password"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email <span className="text-red-500">*</span>
               </label>
               <input
+                id="email"
                 type="email"
                 value={newUserForm.email}
-                onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                onChange={(e) => handleInputChange('email', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                 placeholder="Enter email address"
                 required
+                disabled={isLoading}
+                autoComplete="email"
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={newUserForm.password}
+                onChange={(e) => handleInputChange('password', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
+                placeholder="Enter password (min 6 characters)"
+                required
+                disabled={isLoading}
+                autoComplete="new-password"
+                minLength={6}
+              />
+            </div>
+            
+            <div>
+              <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 mb-1">
                 Phone Number <span className="text-red-500">*</span>
               </label>
               <input
+                id="phone_number"
                 type="tel"
-                value={newUserForm.phoneNumber}
-                onChange={(e) => setNewUserForm({ ...newUserForm, phoneNumber: e.target.value })}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                value={newUserForm.phone_number}
+                onChange={(e) => handleInputChange('phone_number', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                 placeholder="Enter phone number"
                 required
+                disabled={isLoading}
+                autoComplete="tel"
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                User Level <span className="text-red-500">*</span>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
+                User Role <span className="text-red-500">*</span>
               </label>
               <select
+                id="role"
                 value={newUserForm.role}
-                onChange={(e) => setNewUserForm({ ...newUserForm, role: e.target.value as 'admin' | 'sales' })}
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                onChange={(e) => handleInputChange('role', e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                 required
+                disabled={isLoading}
               >
                 <option value="sales">Sales</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
           </div>
+          
           <div className="mt-6 flex justify-end gap-3">
             <ActionButton
               label="Cancel"
-              onClick={() => setIsAddModalOpen(false)}
+              onClick={handleCloseAddModal}
               variant="secondary"
+              disabled={isLoading}
             />
-            <ActionButton
-              label="Add User"
-              onClick={handleAddUser}
-              variant="primary"
-            />
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {isLoading ? 'Adding User...' : 'Add User'}
+            </button>
           </div>
-        </div>
+        </form>
       </Modal>
 
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         title="Edit User"
+        size="md"
+        preventClose={isLoading}
       >
         {selectedUser && (
           <div className="p-6">
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  User Level <span className="text-red-500">*</span>
+                <label htmlFor="editRole" className="block text-sm font-medium text-gray-700 mb-1">
+                  User Role <span className="text-red-500">*</span>
                 </label>
                 <select
+                  id="editRole"
                   value={selectedUser.role}
                   onChange={(e) =>
                     setSelectedUser({ ...selectedUser, role: e.target.value as 'admin' | 'sales' })
                   }
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors"
                   required
+                  disabled={isLoading}
                 >
                   <option value="sales">Sales</option>
                   <option value="admin">Admin</option>
@@ -283,9 +386,10 @@ const UserSettings: React.FC = () => {
                 label="Cancel"
                 onClick={() => setIsEditModalOpen(false)}
                 variant="secondary"
+                disabled={isLoading}
               />
               <ActionButton
-                label="Save Changes"
+                label={isLoading ? 'Saving...' : 'Save Changes'}
                 onClick={() => {
                   if (selectedUser) {
                     handleUpdateUser(selectedUser.id, {
@@ -294,6 +398,7 @@ const UserSettings: React.FC = () => {
                   }
                 }}
                 variant="primary"
+                disabled={isLoading}
               />
             </div>
           </div>
