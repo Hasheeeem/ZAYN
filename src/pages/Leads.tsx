@@ -13,18 +13,20 @@ import StatusBadge from '../components/StatusBadge';
 const ITEMS_PER_PAGE = 10;
 
 const Leads: React.FC = () => {
-  const { leads, addLead, updateLead, deleteLead, salespeople } = useData();
+  const { leads, salespeople, loading, addLead, updateLead, deleteLead, bulkDeleteLeads, bulkAssignLeads } = useData();
   const { showNotification } = useNotification();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [sourceFilter, setSourceFilter] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLeads, setSelectedLeads] = useState<Set<number | string>>(new Set());
+  const [assignToSalesperson, setAssignToSalesperson] = useState('');
 
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = searchTerm === '' || 
@@ -43,42 +45,60 @@ const Leads: React.FC = () => {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const handleAddLead = (lead: Lead) => {
-    addLead(lead);
-    showNotification('Lead added successfully', 'success');
-    setIsAddModalOpen(false);
-  };
-
-  const handleUpdateLead = (lead: Lead) => {
-    updateLead(lead);
-    showNotification('Lead updated successfully', 'success');
-    setIsViewModalOpen(false);
-  };
-
-  const handleDeleteLead = () => {
-    if (selectedLead) {
-      deleteLead(selectedLead.id);
-      showNotification('Lead deleted successfully', 'success');
-      setIsDeleteModalOpen(false);
-      setSelectedLead(null);
+  const handleAddLead = async (lead: Lead) => {
+    try {
+      await addLead(lead);
+      setIsAddModalOpen(false);
+    } catch (error) {
+      // Error is handled in the context
     }
   };
 
-  const handleBulkDelete = () => {
-    selectedLeads.forEach(id => deleteLead(id));
-    showNotification(`${selectedLeads.size} leads deleted`, 'success');
-    setSelectedLeads(new Set());
+  const handleUpdateLead = async (lead: Lead) => {
+    try {
+      await updateLead(lead);
+      setIsViewModalOpen(false);
+    } catch (error) {
+      // Error is handled in the context
+    }
   };
 
-  const handleBulkAssign = (salesPersonId: string) => {
-    selectedLeads.forEach(id => {
-      const lead = leads.find(l => l.id === id);
-      if (lead) {
-        updateLead({ ...lead, assignedTo: salesPersonId });
+  const handleDeleteLead = async () => {
+    if (selectedLead) {
+      try {
+        await deleteLead(selectedLead.id.toString());
+        setIsDeleteModalOpen(false);
+        setSelectedLead(null);
+      } catch (error) {
+        // Error is handled in the context
       }
-    });
-    showNotification(`${selectedLeads.size} leads assigned`, 'success');
-    setSelectedLeads(new Set());
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      await bulkDeleteLeads(Array.from(selectedLeads).map(id => id.toString()));
+      setSelectedLeads(new Set());
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      // Error is handled in the context
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (!assignToSalesperson) {
+      showNotification('Please select a salesperson', 'error');
+      return;
+    }
+
+    try {
+      await bulkAssignLeads(Array.from(selectedLeads).map(id => id.toString()), assignToSalesperson);
+      setSelectedLeads(new Set());
+      setIsAssignModalOpen(false);
+      setAssignToSalesperson('');
+    } catch (error) {
+      // Error is handled in the context
+    }
   };
 
   const columns = [
@@ -138,6 +158,14 @@ const Leads: React.FC = () => {
     }
   ];
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Loading leads...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-full overflow-hidden">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
@@ -154,7 +182,7 @@ const Leads: React.FC = () => {
               <ActionButton
                 label={`Assign (${selectedLeads.size})`}
                 icon={<UserPlus size={18} />}
-                onClick={() => {/* Show assign modal */}}
+                onClick={() => setIsAssignModalOpen(true)}
                 variant="secondary"
               />
             </>
@@ -270,6 +298,44 @@ const Leads: React.FC = () => {
               label="Delete"
               onClick={selectedLeads.size > 0 ? handleBulkDelete : handleDeleteLead}
               variant="danger"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        title="Assign Leads"
+      >
+        <div className="p-6">
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Assign {selectedLeads.size} leads to:
+            </label>
+            <select
+              value={assignToSalesperson}
+              onChange={(e) => setAssignToSalesperson(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="">Select Salesperson</option>
+              {salespeople.map(person => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex justify-end gap-2">
+            <ActionButton
+              label="Cancel"
+              onClick={() => setIsAssignModalOpen(false)}
+              variant="secondary"
+            />
+            <ActionButton
+              label="Assign"
+              onClick={handleBulkAssign}
+              variant="primary"
             />
           </div>
         </div>

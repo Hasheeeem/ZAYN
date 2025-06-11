@@ -5,7 +5,7 @@ import { Lead } from '../types/data';
 import ActionButton from '../components/ActionButton';
 
 interface Props {
-  onSave: (lead: Lead) => void;
+  onSave: (lead: Lead) => Promise<void>;
   onCancel: () => void;
   initialData?: Lead;
   isLoading?: boolean;
@@ -15,9 +15,10 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   const { showNotification } = useNotification();
   const { salespeople } = useData();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
   
   const [form, setForm] = useState<Lead>({
-    id: initialData?.id || Date.now().toString(),
+    id: initialData?.id || '',
     firstName: '',
     lastName: '',
     email: '',
@@ -64,7 +65,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
@@ -72,7 +73,14 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
       return;
     }
 
-    onSave(form);
+    setSaving(true);
+    try {
+      await onSave(form);
+    } catch (error) {
+      // Error is handled in the parent component
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -103,7 +111,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             className={`w-full px-4 py-2 rounded-lg border ${
               errors.firstName ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
-            disabled={isLoading}
+            disabled={isLoading || saving}
           />
           {errors.firstName && (
             <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
@@ -121,7 +129,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             value={form.lastName}
             onChange={handleChange}
             className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-            disabled={isLoading}
+            disabled={isLoading || saving}
           />
         </div>
 
@@ -138,7 +146,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             className={`w-full px-4 py-2 rounded-lg border ${
               errors.email ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
-            disabled={isLoading}
+            disabled={isLoading || saving}
           />
           {errors.email && (
             <p className="mt-1 text-sm text-red-500">{errors.email}</p>
@@ -156,7 +164,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             value={form.phone}
             onChange={handleChange}
             className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-            disabled={isLoading}
+            disabled={isLoading || saving}
           />
         </div>
 
@@ -173,7 +181,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             className={`w-full px-4 py-2 rounded-lg border ${
               errors.domain ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
-            disabled={isLoading}
+            disabled={isLoading || saving}
           />
           {errors.domain && (
             <p className="mt-1 text-sm text-red-500">{errors.domain}</p>
@@ -193,7 +201,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             className={`w-full px-4 py-2 rounded-lg border ${
               errors.price ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
-            disabled={isLoading}
+            disabled={isLoading || saving}
           />
           {errors.price && (
             <p className="mt-1 text-sm text-red-500">{errors.price}</p>
@@ -210,7 +218,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             value={form.status}
             onChange={handleChange}
             className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-            disabled={isLoading}
+            disabled={isLoading || saving}
           >
             <option value="new">New</option>
             <option value="contacted">Contacted</option>
@@ -230,7 +238,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             value={form.source}
             onChange={handleChange}
             className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-            disabled={isLoading}
+            disabled={isLoading || saving}
           >
             <option value="website">Website</option>
             <option value="referral">Referral</option>
@@ -249,7 +257,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             value={form.assignedTo}
             onChange={handleChange}
             className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-            disabled={isLoading}
+            disabled={isLoading || saving}
           >
             <option value="">Unassigned</option>
             {salespeople.map(person => (
@@ -272,7 +280,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           onChange={handleChange}
           rows={4}
           className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-          disabled={isLoading}
+          disabled={isLoading || saving}
         />
       </div>
 
@@ -281,13 +289,13 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           label="Cancel"
           onClick={onCancel}
           variant="secondary"
-          disabled={isLoading}
+          disabled={isLoading || saving}
         />
         <ActionButton
-          label={isLoading ? 'Saving...' : 'Save Lead'}
+          label={saving ? 'Saving...' : 'Save Lead'}
           onClick={handleSubmit}
           variant="primary"
-          disabled={isLoading}
+          disabled={isLoading || saving}
         />
       </div>
     </form>
