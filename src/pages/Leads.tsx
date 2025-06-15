@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, UserPlus } from 'lucide-react';
+import { Plus, Trash2, UserPlus, Eye } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import ActionButton from '../components/ActionButton';
 import Modal from '../components/Modal';
@@ -152,15 +152,16 @@ const Leads: React.FC = () => {
       label: 'Actions',
       render: (_: any, item: Lead) => (
         <div className="flex justify-end gap-2">
-          <ActionButton
-            label="Edit"
-            variant="primary"
-            size="sm"
+          <button
             onClick={() => {
               setSelectedLead(item);
               setIsViewModalOpen(true);
             }}
-          />
+            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            title="View Details"
+          >
+            <Eye size={16} />
+          </button>
           <ActionButton
             label="Delete"
             variant="danger"
@@ -288,16 +289,83 @@ const Leads: React.FC = () => {
       <Modal
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
-        title="Edit Lead"
+        title="Lead Details"
         size="lg"
       >
         {selectedLead && (
-          <LeadForm
-            initialData={selectedLead}
-            onSave={handleUpdateLead}
-            onCancel={() => setIsViewModalOpen(false)}
-            isAdmin={true}
-          />
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Contact Information</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Representative Name</label>
+                    <p className="font-medium">{selectedLead.companyRepresentativeName || `${selectedLead.firstName || ''} ${selectedLead.lastName || ''}`.trim() || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Company Name</label>
+                    <p className="font-medium">{selectedLead.companyName || selectedLead.domain || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Email</label>
+                    <p className="font-medium">{selectedLead.email}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Phone</label>
+                    <p className="font-medium">{selectedLead.phone || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Lead Information</h3>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Price Paid</label>
+                    <p className="font-medium">${selectedLead.pricePaid || selectedLead.price || 0}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Invoice Billed</label>
+                    <p className="font-medium">${selectedLead.invoiceBilled || selectedLead.clicks || 0}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Source</label>
+                    <p className="font-medium capitalize">{selectedLead.source}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Status</label>
+                    <div className="mt-1">
+                      <StatusBadge status={selectedLead.status} type="lead" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Assigned To</label>
+                    <p className="font-medium">
+                      {salespeople?.find(p => p.id.toString() === selectedLead.assignedTo)?.name || 'Unassigned'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {selectedLead.notes && (
+              <div>
+                <h3 className="text-lg font-semibold mb-2">Notes</h3>
+                <p className="text-gray-700 bg-gray-50 p-4 rounded-lg">{selectedLead.notes}</p>
+              </div>
+            )}
+            
+            <div className="flex justify-end pt-4 border-t">
+              <ActionButton
+                label="Edit Lead"
+                onClick={() => {
+                  setIsViewModalOpen(false);
+                  // You can add edit functionality here if needed
+                }}
+                variant="primary"
+              />
+            </div>
+          </div>
         )}
       </Modal>
 

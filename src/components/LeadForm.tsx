@@ -72,14 +72,6 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
       newErrors.email = 'Invalid email format';
     }
 
-    if (form.pricePaid < 0) {
-      newErrors.pricePaid = 'Price paid cannot be negative';
-    }
-
-    if (form.invoiceBilled < 0) {
-      newErrors.invoiceBilled = 'Invoice billed cannot be negative';
-    }
-
     if (isAdmin && !form.assignedTo) {
       newErrors.assignedTo = 'Please assign the lead to a sales person';
     }
@@ -105,10 +97,10 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         firstName: form.companyRepresentativeName,
         lastName: '',
         domain: form.companyName,
-        price: Number(form.pricePaid) || 0,
+        price: parseFloat(form.pricePaid?.toString() || '0') || 0,
         email: form.email,
         phone: form.phone || null,
-        clicks: Number(form.invoiceBilled) || 0, // Map invoiceBilled to clicks
+        clicks: parseFloat(form.invoiceBilled?.toString() || '0') || 0, // Map invoiceBilled to clicks
         status: form.status,
         source: form.source,
         assignedTo: form.assignedTo || null,
@@ -116,8 +108,8 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         // Keep the new fields for display purposes
         companyRepresentativeName: form.companyRepresentativeName,
         companyName: form.companyName,
-        pricePaid: Number(form.pricePaid) || 0,
-        invoiceBilled: Number(form.invoiceBilled) || 0
+        pricePaid: parseFloat(form.pricePaid?.toString() || '0') || 0,
+        invoiceBilled: parseFloat(form.invoiceBilled?.toString() || '0') || 0
       };
 
       console.log('Submitting lead payload:', leadPayload);
@@ -132,10 +124,25 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setForm(prev => ({ 
-      ...prev, 
-      [name]: name === 'pricePaid' || name === 'invoiceBilled' || name === 'clicks' ? parseFloat(value) || 0 : value 
-    }));
+    
+    // Handle numeric fields with decimal support
+    if (name === 'pricePaid' || name === 'invoiceBilled') {
+      // Allow only numbers and decimal points
+      const numericValue = value.replace(/[^0-9.]/g, '');
+      // Ensure only one decimal point
+      const parts = numericValue.split('.');
+      const formattedValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericValue;
+      
+      setForm(prev => ({ 
+        ...prev, 
+        [name]: formattedValue
+      }));
+    } else {
+      setForm(prev => ({ 
+        ...prev, 
+        [name]: value 
+      }));
+    }
     
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
@@ -294,18 +301,13 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           <input
             id="pricePaid"
             name="pricePaid"
-            type="number"
-            step="0.01"
-            value={form.pricePaid || 0}
+            type="text"
+            value={form.pricePaid || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.pricePaid ? 'border-red-500' : 'border-gray-300'
-            } focus:ring-2 focus:ring-indigo-500`}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
             disabled={isLoading || saving}
+            placeholder="0.00"
           />
-          {errors.pricePaid && (
-            <p className="mt-1 text-sm text-red-500">{errors.pricePaid}</p>
-          )}
         </div>
 
         <div>
@@ -315,18 +317,13 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           <input
             id="invoiceBilled"
             name="invoiceBilled"
-            type="number"
-            step="0.01"
-            value={form.invoiceBilled || 0}
+            type="text"
+            value={form.invoiceBilled || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.invoiceBilled ? 'border-red-500' : 'border-gray-300'
-            } focus:ring-2 focus:ring-indigo-500`}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
             disabled={isLoading || saving}
+            placeholder="0.00"
           />
-          {errors.invoiceBilled && (
-            <p className="mt-1 text-sm text-red-500">{errors.invoiceBilled}</p>
-          )}
         </div>
       </div>
 

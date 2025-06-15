@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Phone, Mail, MessageSquare, Calendar, Edit, Eye, Plus } from 'lucide-react';
+import { Eye, Edit, Plus } from 'lucide-react';
 import DataTable from '../../components/DataTable';
 import ActionButton from '../../components/ActionButton';
 import Modal from '../../components/Modal';
@@ -54,20 +54,6 @@ const SalesLeads: React.FC = () => {
     }
   };
 
-  const handleContactLead = (lead: Lead, method: 'phone' | 'email' | 'message') => {
-    switch (method) {
-      case 'phone':
-        window.open(`tel:${lead.phone}`);
-        break;
-      case 'email':
-        window.open(`mailto:${lead.email}`);
-        break;
-      case 'message':
-        showNotification('Message feature coming soon', 'info');
-        break;
-    }
-  };
-
   const columns = [
     { 
       key: 'contact',
@@ -104,20 +90,6 @@ const SalesLeads: React.FC = () => {
       label: 'Actions',
       render: (_: any, item: Lead) => (
         <div className="flex justify-end gap-1">
-          <button
-            onClick={() => handleContactLead(item, 'phone')}
-            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-            title="Call"
-          >
-            <Phone size={16} />
-          </button>
-          <button
-            onClick={() => handleContactLead(item, 'email')}
-            className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-            title="Email"
-          >
-            <Mail size={16} />
-          </button>
           <button
             onClick={() => {
               setSelectedLead(item);
@@ -280,21 +252,6 @@ const SalesLeads: React.FC = () => {
             )}
             
             <div className="flex justify-between items-center pt-4 border-t">
-              <div className="flex gap-2">
-                <ActionButton
-                  label="Call"
-                  icon={<Phone size={16} />}
-                  onClick={() => handleContactLead(selectedLead, 'phone')}
-                  variant="success"
-                />
-                <ActionButton
-                  label="Email"
-                  icon={<Mail size={16} />}
-                  onClick={() => handleContactLead(selectedLead, 'email')}
-                  variant="primary"
-                />
-              </div>
-              
               <div className="flex gap-2">
                 <select
                   value={selectedLead.status}
