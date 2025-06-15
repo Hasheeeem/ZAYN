@@ -95,7 +95,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: leadData.phone || null,
         domain: leadData.domain,
         price: Number(leadData.price) || 0,
-        clicks: Number(leadData.clicks) || 0,
+        clicks: Number(leadData.invoiceBilled) || 0, // Map invoiceBilled to clicks
         status: leadData.status,
         source: leadData.source,
         assignedTo: leadData.assignedTo || null,
@@ -140,7 +140,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone: updatedLead.phone || null,
         domain: updatedLead.domain,
         price: Number(updatedLead.price) || 0,
-        clicks: Number(updatedLead.clicks) || 0,
+        clicks: Number(updatedLead.invoiceBilled) || 0, // Map invoiceBilled to clicks
         status: updatedLead.status,
         source: updatedLead.source,
         assignedTo: updatedLead.assignedTo || null,

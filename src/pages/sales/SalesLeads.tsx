@@ -87,7 +87,7 @@ const SalesLeads: React.FC = () => {
       render: (value: string, item: Lead) => (
         <div>
           <div className="text-sm">Paid: ${item.pricePaid || item.price || 0}</div>
-          <div className="text-sm text-gray-500">Billed: ${item.invoiceBilled || 0}</div>
+          <div className="text-sm text-gray-500">Billed: ${item.invoiceBilled || item.clicks || 0}</div>
         </div>
       )
     },
@@ -256,7 +256,7 @@ const SalesLeads: React.FC = () => {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Invoice Billed</label>
-                    <p className="font-medium">${selectedLead.invoiceBilled || 0}</p>
+                    <p className="font-medium">${selectedLead.invoiceBilled || selectedLead.clicks || 0}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Source</label>

@@ -39,7 +39,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     companyRepresentativeName: initialData?.companyRepresentativeName || initialData?.firstName || '',
     companyName: initialData?.companyName || initialData?.domain || '',
     pricePaid: initialData?.pricePaid || initialData?.price || 0,
-    invoiceBilled: initialData?.invoiceBilled || 0
+    invoiceBilled: initialData?.invoiceBilled || initialData?.clicks || 0
   });
 
   useEffect(() => {
@@ -50,7 +50,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         companyRepresentativeName: initialData.companyRepresentativeName || initialData.firstName || '',
         companyName: initialData.companyName || initialData.domain || '',
         pricePaid: initialData.pricePaid || initialData.price || 0,
-        invoiceBilled: initialData.invoiceBilled || 0
+        invoiceBilled: initialData.invoiceBilled || initialData.clicks || 0
       });
     }
   }, [initialData]);
@@ -108,7 +108,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         price: Number(form.pricePaid) || 0,
         email: form.email,
         phone: form.phone || null,
-        clicks: Number(form.clicks) || 0,
+        clicks: Number(form.invoiceBilled) || 0, // Map invoiceBilled to clicks
         status: form.status,
         source: form.source,
         assignedTo: form.assignedTo || null,
