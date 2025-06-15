@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { UserPlus, Users } from 'lucide-react';
+import { UserPlus, Users, Target } from 'lucide-react';
 import ActionButton from '../components/ActionButton';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import SearchFilter from '../components/SearchFilter';
+import TargetForm from '../components/TargetForm';
 import { useData } from '../context/DataContext';
 import { useNotification } from '../context/NotificationContext';
 import { User } from '../types/data';
@@ -17,15 +18,22 @@ interface NewUserFormData {
   role: 'admin' | 'sales';
 }
 
+interface UserTargets {
+  salesTarget: number;
+  invoiceTarget: number;
+}
+
 const UserSettings: React.FC = () => {
   const { managementUsers, refreshData } = useData();
   const { showNotification } = useNotification();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isTargetModalOpen, setIsTargetModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [userTargets, setUserTargets] = useState<Record<string, UserTargets>>({});
   const [newUserForm, setNewUserForm] = useState<NewUserFormData>({
     name: '',
     password: '',
@@ -110,6 +118,28 @@ const UserSettings: React.FC = () => {
     }
   };
 
+  const handleSetTargets = async (targets: UserTargets) => {
+    if (!selectedUser) return;
+
+    setIsLoading(true);
+    try {
+      // Store targets in local state (in a real app, this would be saved to backend)
+      setUserTargets(prev => ({
+        ...prev,
+        [selectedUser.id]: targets
+      }));
+      
+      showNotification('Targets set successfully', 'success');
+      setIsTargetModalOpen(false);
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Error setting targets:', error);
+      showNotification('Failed to set targets. Please try again.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleToggleStatus = (userId: number, currentStatus: string) => {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     handleUpdateUser(userId, { status: newStatus as 'active' | 'inactive' });
@@ -160,6 +190,22 @@ const UserSettings: React.FC = () => {
       )
     },
     { 
+      key: 'targets',
+      label: 'Monthly Targets',
+      render: (value: string, user: User) => {
+        const targets = userTargets[user.id];
+        if (!targets) {
+          return <span className="text-gray-500 text-sm">Not set</span>;
+        }
+        return (
+          <div className="text-sm">
+            <div className="text-green-600">Sales: ${targets.salesTarget.toLocaleString()}</div>
+            <div className="text-blue-600">Invoice: ${targets.invoiceTarget.toLocaleString()}</div>
+          </div>
+        );
+      }
+    },
+    { 
       key: 'lastLogin', 
       label: 'Last Login',
       render: (value: string) => value || 'Never'
@@ -173,6 +219,24 @@ const UserSettings: React.FC = () => {
         }`}>
           {value === 'active' ? 'Active' : 'Disabled'}
         </span>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (_: any, user: User) => (
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={() => {
+              setSelectedUser(user);
+              setIsTargetModalOpen(true);
+            }}
+            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+            title="Set Targets"
+          >
+            <Target size={16} />
+          </button>
+        </div>
       )
     }
   ];
@@ -238,6 +302,7 @@ const UserSettings: React.FC = () => {
         statusType="user"
       />
 
+      {/* Add User Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={handleCloseAddModal}
@@ -352,6 +417,7 @@ const UserSettings: React.FC = () => {
         </form>
       </Modal>
 
+      {/* Edit User Modal */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -402,6 +468,32 @@ const UserSettings: React.FC = () => {
               />
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Set Targets Modal */}
+      <Modal
+        isOpen={isTargetModalOpen}
+        onClose={() => {
+          setIsTargetModalOpen(false);
+          setSelectedUser(null);
+        }}
+        title="Set Monthly Targets"
+        size="lg"
+        preventClose={isLoading}
+      >
+        {selectedUser && (
+          <TargetForm
+            userId={selectedUser.id.toString()}
+            userName={selectedUser.name}
+            currentTargets={userTargets[selectedUser.id]}
+            onSave={handleSetTargets}
+            onCancel={() => {
+              setIsTargetModalOpen(false);
+              setSelectedUser(null);
+            }}
+            isLoading={isLoading}
+          />
         )}
       </Modal>
     </div>

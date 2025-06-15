@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, UserPlus, Eye } from 'lucide-react';
+import { Plus, Trash2, UserPlus, Eye, Edit } from 'lucide-react';
 import DataTable from '../components/DataTable';
 import ActionButton from '../components/ActionButton';
 import Modal from '../components/Modal';
@@ -17,6 +17,7 @@ const Leads: React.FC = () => {
   const { showNotification } = useNotification();
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -55,7 +56,8 @@ const Leads: React.FC = () => {
   const handleUpdateLead = async (lead: Lead) => {
     try {
       await updateLead(lead);
-      setIsViewModalOpen(false);
+      setIsEditModalOpen(false);
+      setSelectedLead(null);
     } catch (error) {
       // Error is handled in the context
     }
@@ -161,6 +163,16 @@ const Leads: React.FC = () => {
             title="View Details"
           >
             <Eye size={16} />
+          </button>
+          <button
+            onClick={() => {
+              setSelectedLead(item);
+              setIsEditModalOpen(true);
+            }}
+            className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+            title="Edit Lead"
+          >
+            <Edit size={16} />
           </button>
           <ActionButton
             label="Delete"
@@ -277,6 +289,7 @@ const Leads: React.FC = () => {
         </div>
       </div>
 
+      {/* Add Lead Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -286,6 +299,30 @@ const Leads: React.FC = () => {
         <LeadForm onSave={handleAddLead} onCancel={() => setIsAddModalOpen(false)} isAdmin={true} />
       </Modal>
 
+      {/* Edit Lead Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedLead(null);
+        }}
+        title="Edit Lead"
+        size="lg"
+      >
+        {selectedLead && (
+          <LeadForm
+            initialData={selectedLead}
+            onSave={handleUpdateLead}
+            onCancel={() => {
+              setIsEditModalOpen(false);
+              setSelectedLead(null);
+            }}
+            isAdmin={true}
+          />
+        )}
+      </Modal>
+
+      {/* View Lead Modal */}
       <Modal
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
@@ -360,7 +397,7 @@ const Leads: React.FC = () => {
                 label="Edit Lead"
                 onClick={() => {
                   setIsViewModalOpen(false);
-                  // You can add edit functionality here if needed
+                  setIsEditModalOpen(true);
                 }}
                 variant="primary"
               />
@@ -369,6 +406,7 @@ const Leads: React.FC = () => {
         )}
       </Modal>
 
+      {/* Delete Confirmation Modal */}
       <Modal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
@@ -391,6 +429,7 @@ const Leads: React.FC = () => {
         </div>
       </Modal>
 
+      {/* Bulk Assign Modal */}
       <Modal
         isOpen={isAssignModalOpen}
         onClose={() => setIsAssignModalOpen(false)}

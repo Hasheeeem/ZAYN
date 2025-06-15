@@ -31,6 +31,12 @@ export interface User {
     leadsConverted: number;
     conversionRate: number;
   };
+  targets?: {
+    salesTarget: number;
+    invoiceTarget: number;
+    salesAchieved: number;
+    invoiceAchieved: number;
+  };
 }
 
 export interface Brand {

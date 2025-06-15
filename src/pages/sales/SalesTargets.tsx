@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, TrendingUp, Calendar, Award, AlertCircle, CheckCircle, DollarSign, Users } from 'lucide-react';
 import StatCard from '../../components/StatCard';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
@@ -19,71 +19,71 @@ interface SalesTarget {
 }
 
 const SalesTargets: React.FC = () => {
-  const { leads } = useData();
+  const { leads, userTargets, calculateUserProgress } = useData();
   const { authState } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
 
   // Filter leads assigned to current sales user
   const myLeads = leads.filter(lead => lead.assignedTo === authState.user?.id.toString());
   const convertedLeads = myLeads.filter(lead => lead.status === 'converted');
-  const totalRevenue = convertedLeads.reduce((sum, lead) => sum + lead.price, 0);
+  
+  // Get current user's targets
+  const currentUserTargets = userTargets[authState.user?.id.toString() || ''];
+  const salesAchieved = currentUserTargets?.salesAchieved || 0;
+  const invoiceAchieved = currentUserTargets?.invoiceAchieved || 0;
+  const salesTarget = currentUserTargets?.salesTarget || 0;
+  const invoiceTarget = currentUserTargets?.invoiceTarget || 0;
+
+  // Calculate progress
+  const { salesProgress, invoiceProgress } = calculateUserProgress(authState.user?.id.toString() || '');
 
   // Comprehensive targets data
   const targets: SalesTarget[] = [
     {
       id: 1,
       period: 'monthly',
-      target: 15,
-      achieved: convertedLeads.length,
+      target: salesTarget,
+      achieved: salesAchieved,
       deadline: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
-      status: convertedLeads.length >= 15 ? 'exceeded' : convertedLeads.length >= 12 ? 'on-track' : 'behind',
-      description: 'Monthly lead conversion target',
-      revenue: totalRevenue,
-      targetRevenue: 150000
+      status: salesAchieved >= salesTarget ? 'exceeded' : salesAchieved >= salesTarget * 0.8 ? 'on-track' : 'behind',
+      description: 'Monthly sales target (Price Paid)',
+      revenue: salesAchieved,
+      targetRevenue: salesTarget
     },
     {
       id: 2,
-      period: 'quarterly',
-      target: 45,
-      achieved: convertedLeads.length,
-      deadline: format(endOfQuarter(new Date()), 'yyyy-MM-dd'),
-      status: convertedLeads.length >= 45 ? 'exceeded' : convertedLeads.length >= 35 ? 'on-track' : 'behind',
-      description: 'Quarterly lead conversion target',
-      revenue: totalRevenue,
-      targetRevenue: 450000
-    },
-    {
-      id: 3,
-      period: 'yearly',
-      target: 180,
-      achieved: convertedLeads.length,
-      deadline: format(endOfYear(new Date()), 'yyyy-MM-dd'),
-      status: convertedLeads.length >= 180 ? 'exceeded' : convertedLeads.length >= 140 ? 'on-track' : 'behind',
-      description: 'Annual lead conversion target',
-      revenue: totalRevenue,
-      targetRevenue: 1800000
+      period: 'monthly',
+      target: invoiceTarget,
+      achieved: invoiceAchieved,
+      deadline: format(endOfMonth(new Date()), 'yyyy-MM-dd'),
+      status: invoiceAchieved >= invoiceTarget ? 'exceeded' : invoiceAchieved >= invoiceTarget * 0.8 ? 'on-track' : 'behind',
+      description: 'Monthly invoice target (Invoice Billed)',
+      revenue: invoiceAchieved,
+      targetRevenue: invoiceTarget
     }
   ];
 
   // Historical performance data
   const monthlyData = Array.from({ length: 12 }, (_, i) => {
     const month = subMonths(new Date(), 11 - i);
-    const baseTarget = 15;
-    const baseAchieved = Math.floor(Math.random() * 8) + 10;
+    const baseTarget = salesTarget || 15000;
+    const baseAchieved = Math.floor(Math.random() * 8000) + 10000;
     
     return {
       month: format(month, 'MMM'),
-      target: baseTarget,
-      achieved: i === 11 ? convertedLeads.length : baseAchieved,
-      revenue: i === 11 ? totalRevenue : (baseAchieved * 8000) + Math.floor(Math.random() * 20000)
+      salesTarget: baseTarget,
+      salesAchieved: i === 11 ? salesAchieved : baseAchieved,
+      invoiceTarget: invoiceTarget || 12000,
+      invoiceAchieved: i === 11 ? invoiceAchieved : Math.floor(Math.random() * 6000) + 8000
     };
   });
 
   const weeklyData = Array.from({ length: 4 }, (_, i) => ({
     week: `Week ${i + 1}`,
-    target: Math.floor(15 / 4),
-    achieved: Math.floor(Math.random() * 6) + 2,
-    revenue: (Math.floor(Math.random() * 6) + 2) * 8000
+    salesTarget: Math.floor((salesTarget || 15000) / 4),
+    salesAchieved: Math.floor(Math.random() * 3000) + 2000,
+    invoiceTarget: Math.floor((invoiceTarget || 12000) / 4),
+    invoiceAchieved: Math.floor(Math.random() * 2000) + 1500
   }));
 
   // Performance by lead source
@@ -93,10 +93,6 @@ const SalesTargets: React.FC = () => {
     { source: 'Call', leads: myLeads.filter(l => l.source === 'call').length, converted: convertedLeads.filter(l => l.source === 'call').length },
     { source: 'Other', leads: myLeads.filter(l => l.source === 'other').length, converted: convertedLeads.filter(l => l.source === 'other').length }
   ];
-
-  const currentTarget = targets.find(t => t.period === selectedPeriod);
-  const progressPercentage = currentTarget ? (currentTarget.achieved / currentTarget.target) * 100 : 0;
-  const revenueProgressPercentage = currentTarget ? (currentTarget.revenue / currentTarget.targetRevenue) * 100 : 0;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -129,27 +125,27 @@ const SalesTargets: React.FC = () => {
 
   const targetStats = [
     {
-      title: 'Current Target',
-      value: currentTarget?.target || 0,
-      icon: <Target size={24} />,
+      title: 'Sales Target',
+      value: `$${salesTarget.toLocaleString()}`,
+      icon: <DollarSign size={24} />,
       color: 'blue'
     },
     {
-      title: 'Achieved',
-      value: currentTarget?.achieved || 0,
+      title: 'Sales Achieved',
+      value: `$${salesAchieved.toLocaleString()}`,
       icon: <CheckCircle size={24} />,
       color: 'green'
     },
     {
-      title: 'Progress',
-      value: `${Math.round(progressPercentage)}%`,
-      icon: <TrendingUp size={24} />,
+      title: 'Invoice Target',
+      value: `$${invoiceTarget.toLocaleString()}`,
+      icon: <Target size={24} />,
       color: 'purple'
     },
     {
-      title: 'Revenue',
-      value: `$${(currentTarget?.revenue || 0).toLocaleString()}`,
-      icon: <DollarSign size={24} />,
+      title: 'Invoice Achieved',
+      value: `$${invoiceAchieved.toLocaleString()}`,
+      icon: <TrendingUp size={24} />,
       color: 'yellow'
     }
   ];
@@ -160,24 +156,19 @@ const SalesTargets: React.FC = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold text-gray-800">Sales Targets</h2>
-          <p className="text-gray-600">Track your progress towards sales goals</p>
+          <h2 className="text-2xl font-semibold text-gray-800">My Sales Targets</h2>
+          <p className="text-gray-600">Track your progress towards monthly goals</p>
         </div>
-        <div className="flex gap-2">
-          {(['monthly', 'quarterly', 'yearly'] as const).map((period) => (
-            <button
-              key={period}
-              onClick={() => setSelectedPeriod(period)}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                selectedPeriod === period
-                  ? 'bg-indigo-500 text-white'
-                  : 'bg-white text-gray-600 hover:bg-indigo-50'
-              }`}
-            >
-              {period.charAt(0).toUpperCase() + period.slice(1)}
-            </button>
-          ))}
-        </div>
+        {!salesTarget && !invoiceTarget && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="text-yellow-600" size={20} />
+              <p className="text-yellow-800 text-sm">
+                No targets set yet. Contact your admin to set monthly targets.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Target Stats */}
@@ -194,76 +185,107 @@ const SalesTargets: React.FC = () => {
       </div>
 
       {/* Progress Overview */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">
-          {selectedPeriod.charAt(0).toUpperCase() + selectedPeriod.slice(1)} Progress Overview
-        </h3>
-        
-        {currentTarget && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
+      {(salesTarget > 0 || invoiceTarget > 0) && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-700 mb-6">Monthly Progress Overview</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Sales Progress */}
+            {salesTarget > 0 && (
               <div>
-                <p className="text-sm text-gray-600">{currentTarget.description}</p>
-                <p className="text-xs text-gray-500">
-                  Deadline: {format(new Date(currentTarget.deadline), 'MMMM dd, yyyy')}
-                </p>
-              </div>
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(currentTarget.status)}`}>
-                {getStatusIcon(currentTarget.status)}
-                {currentTarget.status.replace('-', ' ').toUpperCase()}
-              </div>
-            </div>
-            
-            {/* Leads Progress */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">Leads Converted</span>
-                <span className="text-sm text-gray-600">{currentTarget.achieved} / {currentTarget.target}</span>
-              </div>
-              <div className="relative">
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div
-                    className={`h-4 rounded-full transition-all duration-500 ${
-                      progressPercentage >= 100 ? 'bg-green-500' :
-                      progressPercentage >= 80 ? 'bg-blue-500' :
-                      progressPercentage >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-                  />
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="text-green-600" size={20} />
+                    <span className="font-medium text-gray-700">Sales Target Progress</span>
+                  </div>
+                  <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(targets[0]?.status || 'behind')}`}>
+                    {getStatusIcon(targets[0]?.status || 'behind')}
+                    {(targets[0]?.status || 'behind').replace('-', ' ').toUpperCase()}
+                  </div>
                 </div>
-                <div className="text-center text-sm font-medium text-gray-700 mt-1">
-                  {Math.round(progressPercentage)}% Complete
+                
+                <div className="mb-2">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Price Paid from Leads</span>
+                    <span>${salesAchieved.toLocaleString()} / ${salesTarget.toLocaleString()}</span>
+                  </div>
+                </div>
+                
+                <div className="relative">
+                  <div className="w-full bg-gray-200 rounded-full h-6">
+                    <div
+                      className={`h-6 rounded-full transition-all duration-500 flex items-center justify-center text-white text-sm font-medium ${
+                        salesProgress >= 100 ? 'bg-green-500' :
+                        salesProgress >= 80 ? 'bg-blue-500' :
+                        salesProgress >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${Math.min(salesProgress, 100)}%` }}
+                    >
+                      {salesProgress >= 20 && `${Math.round(salesProgress)}%`}
+                    </div>
+                  </div>
+                  {salesProgress < 20 && (
+                    <div className="text-center text-sm font-medium text-gray-700 mt-1">
+                      {Math.round(salesProgress)}% Complete
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-3 text-sm text-gray-600">
+                  Remaining: ${Math.max(0, salesTarget - salesAchieved).toLocaleString()}
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Revenue Progress */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">Revenue Target</span>
-                <span className="text-sm text-gray-600">
-                  ${currentTarget.revenue.toLocaleString()} / ${currentTarget.targetRevenue.toLocaleString()}
-                </span>
-              </div>
-              <div className="relative">
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div
-                    className={`h-4 rounded-full transition-all duration-500 ${
-                      revenueProgressPercentage >= 100 ? 'bg-green-500' :
-                      revenueProgressPercentage >= 80 ? 'bg-blue-500' :
-                      revenueProgressPercentage >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${Math.min(revenueProgressPercentage, 100)}%` }}
-                  />
+            {/* Invoice Progress */}
+            {invoiceTarget > 0 && (
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <div className="flex items-center gap-2">
+                    <Target className="text-blue-600" size={20} />
+                    <span className="font-medium text-gray-700">Invoice Target Progress</span>
+                  </div>
+                  <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(targets[1]?.status || 'behind')}`}>
+                    {getStatusIcon(targets[1]?.status || 'behind')}
+                    {(targets[1]?.status || 'behind').replace('-', ' ').toUpperCase()}
+                  </div>
                 </div>
-                <div className="text-center text-sm font-medium text-gray-700 mt-1">
-                  {Math.round(revenueProgressPercentage)}% Complete
+                
+                <div className="mb-2">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Invoice Billed from Leads</span>
+                    <span>${invoiceAchieved.toLocaleString()} / ${invoiceTarget.toLocaleString()}</span>
+                  </div>
+                </div>
+                
+                <div className="relative">
+                  <div className="w-full bg-gray-200 rounded-full h-6">
+                    <div
+                      className={`h-6 rounded-full transition-all duration-500 flex items-center justify-center text-white text-sm font-medium ${
+                        invoiceProgress >= 100 ? 'bg-green-500' :
+                        invoiceProgress >= 80 ? 'bg-blue-500' :
+                        invoiceProgress >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${Math.min(invoiceProgress, 100)}%` }}
+                    >
+                      {invoiceProgress >= 20 && `${Math.round(invoiceProgress)}%`}
+                    </div>
+                  </div>
+                  {invoiceProgress < 20 && (
+                    <div className="text-center text-sm font-medium text-gray-700 mt-1">
+                      {Math.round(invoiceProgress)}% Complete
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-3 text-sm text-gray-600">
+                  Remaining: ${Math.max(0, invoiceTarget - invoiceAchieved).toLocaleString()}
                 </div>
               </div>
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -275,25 +297,29 @@ const SalesTargets: React.FC = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip />
+                <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, '']} />
                 <Legend />
-                <Bar dataKey="target" name="Target" fill="#e5e7eb" />
-                <Bar dataKey="achieved" name="Achieved" fill="#8b5cf6" />
+                <Bar dataKey="salesTarget" name="Sales Target" fill="#e5e7eb" />
+                <Bar dataKey="salesAchieved" name="Sales Achieved" fill="#10b981" />
+                <Bar dataKey="invoiceTarget" name="Invoice Target" fill="#d1d5db" />
+                <Bar dataKey="invoiceAchieved" name="Invoice Achieved" fill="#3b82f6" />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-md p-6">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">Revenue Trend</h3>
+          <h3 className="text-lg font-semibold text-gray-700 mb-4">Target vs Achievement</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={monthlyData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
-                <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, 'Revenue']} />
-                <Line type="monotone" dataKey="revenue" stroke="#8b5cf6" strokeWidth={3} />
+                <Tooltip formatter={(value) => [`$${value.toLocaleString()}`, '']} />
+                <Legend />
+                <Line type="monotone" dataKey="salesAchieved" stroke="#10b981" strokeWidth={3} name="Sales Achieved" />
+                <Line type="monotone" dataKey="invoiceAchieved" stroke="#3b82f6" strokeWidth={3} name="Invoice Achieved" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -345,52 +371,47 @@ const SalesTargets: React.FC = () => {
         </div>
       </div>
 
-      {/* All Targets Overview */}
-      <div className="bg-white rounded-xl shadow-md p-6">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">All Targets Overview</h3>
-        <div className="space-y-4">
-          {targets.map((target) => (
-            <div key={target.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h4 className="font-medium text-gray-800 capitalize">{target.period} Target</h4>
-                    <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(target.status)}`}>
-                      {getStatusIcon(target.status)}
-                      {target.status.replace('-', ' ')}
+      {/* Target Details */}
+      {(salesTarget > 0 || invoiceTarget > 0) && (
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <h3 className="text-lg font-semibold text-gray-700 mb-4">Target Details</h3>
+          <div className="space-y-4">
+            {targets.filter(target => target.target > 0).map((target) => (
+              <div key={target.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h4 className="font-medium text-gray-800">{target.description}</h4>
+                      <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(target.status)}`}>
+                        {getStatusIcon(target.status)}
+                        {target.status.replace('-', ' ')}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Target: </span>
+                        <span className="font-medium">${target.target.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Achieved: </span>
+                        <span className="font-medium">${target.achieved.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Remaining: </span>
+                        <span className="font-medium">${Math.max(0, target.target - target.achieved).toLocaleString()}</span>
+                      </div>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-3">{target.description}</p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">Leads: </span>
-                      <span className="font-medium">{target.achieved}/{target.target}</span>
+                  <div className="text-right ml-4">
+                    <div className="text-2xl font-bold text-indigo-600">
+                      {Math.round((target.achieved / target.target) * 100)}%
                     </div>
-                    <div>
-                      <span className="text-gray-600">Revenue: </span>
-                      <span className="font-medium">${target.revenue.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Target Revenue: </span>
-                      <span className="font-medium">${target.targetRevenue.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Deadline: </span>
-                      <span className="font-medium">{format(new Date(target.deadline), 'MMM dd, yyyy')}</span>
-                    </div>
+                    <div className="text-xs text-gray-500">Complete</div>
                   </div>
                 </div>
-                <div className="text-right ml-4">
-                  <div className="text-2xl font-bold text-indigo-600">
-                    {Math.round((target.achieved / target.target) * 100)}%
-                  </div>
-                  <div className="text-xs text-gray-500">Complete</div>
-                </div>
-              </div>
-              <div className="mt-3 space-y-2">
-                <div>
+                <div className="mt-3">
                   <div className="flex justify-between text-xs text-gray-600 mb-1">
-                    <span>Leads Progress</span>
+                    <span>Progress</span>
                     <span>{Math.round((target.achieved / target.target) * 100)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
@@ -404,27 +425,11 @@ const SalesTargets: React.FC = () => {
                     />
                   </div>
                 </div>
-                <div>
-                  <div className="flex justify-between text-xs text-gray-600 mb-1">
-                    <span>Revenue Progress</span>
-                    <span>{Math.round((target.revenue / target.targetRevenue) * 100)}%</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all duration-500 ${
-                        (target.revenue / target.targetRevenue) * 100 >= 100 ? 'bg-green-500' :
-                        (target.revenue / target.targetRevenue) * 100 >= 80 ? 'bg-blue-500' :
-                        (target.revenue / target.targetRevenue) * 100 >= 60 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${Math.min((target.revenue / target.targetRevenue) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Performance Insights */}
       <div className="bg-white rounded-xl shadow-md p-6">
@@ -442,27 +447,29 @@ const SalesTargets: React.FC = () => {
                 (current.leads > 0 && current.converted / current.leads) > (best.leads > 0 ? best.converted / best.leads : 0) ? current : best
               ).converted / sourcePerformance.reduce((best, current) => 
                 (current.leads > 0 && current.converted / current.leads) > (best.leads > 0 ? best.converted / best.leads : 0) ? current : best
-              ).leads) * 100)}% conversion rate
+              ).leads) * 100) || 0}% conversion rate
             </p>
           </div>
           
           <div className="bg-green-50 p-4 rounded-lg">
             <div className="flex items-center gap-3 mb-2">
               <DollarSign className="text-green-600" size={24} />
-              <h4 className="font-medium text-green-800">Average Deal Size</h4>
+              <h4 className="font-medium text-green-800">Sales Progress</h4>
             </div>
             <p className="text-green-700">
-              ${convertedLeads.length > 0 ? Math.round(totalRevenue / convertedLeads.length).toLocaleString() : 0} per converted lead
+              {salesProgress >= 100 ? 'Target exceeded!' : 
+               salesProgress >= 80 ? 'On track to meet target' :
+               salesProgress >= 50 ? 'Making good progress' : 'Need to accelerate efforts'}
             </p>
           </div>
           
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="flex items-center gap-3 mb-2">
               <Users className="text-purple-600" size={24} />
-              <h4 className="font-medium text-purple-800">Conversion Rate</h4>
+              <h4 className="font-medium text-purple-800">Total Leads</h4>
             </div>
             <p className="text-purple-700">
-              {myLeads.length > 0 ? Math.round((convertedLeads.length / myLeads.length) * 100) : 0}% overall conversion rate
+              {myLeads.length} leads assigned with {convertedLeads.length} converted
             </p>
           </div>
         </div>
