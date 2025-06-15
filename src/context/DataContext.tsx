@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Lead, User } from '../types/data';
 import apiService from '../services/api';
 import { useNotification } from './NotificationContext';
+import { useAuth } from './AuthContext';
 
 interface DataContextType {
   leads: Lead[];
@@ -39,24 +40,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [salespeople, setSalespeople] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
+  const { authState } = useAuth();
 
   const refreshData = async () => {
     setLoading(true);
     try {
-      const [leadsResponse, usersResponse, salespeopleResponse] = await Promise.all([
-        apiService.getLeads(),
-        apiService.getUsers(),
-        apiService.getSalespeople()
-      ]);
-
+      // Always fetch leads (filtered by role on backend)
+      const leadsResponse = await apiService.getLeads();
       if (leadsResponse.success) {
         setLeads(leadsResponse.data);
       }
-      if (usersResponse.success) {
-        setManagementUsers(usersResponse.data);
-      }
-      if (salespeopleResponse.success) {
-        setSalespeople(salespeopleResponse.data);
+
+      // Only fetch users and salespeople if user is admin
+      if (authState.user?.role === 'admin') {
+        const [usersResponse, salespeopleResponse] = await Promise.all([
+          apiService.getUsers(),
+          apiService.getSalespeople()
+        ]);
+
+        if (usersResponse.success) {
+          setManagementUsers(usersResponse.data);
+        }
+        if (salespeopleResponse.success) {
+          setSalespeople(salespeopleResponse.data);
+        }
+      } else {
+        // For sales users, only get salespeople for assignment purposes
+        const salespeopleResponse = await apiService.getSalespeople();
+        if (salespeopleResponse.success) {
+          setSalespeople(salespeopleResponse.data);
+        }
       }
     } catch (error) {
       console.error('Error refreshing data:', error);
@@ -67,8 +80,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    if (authState.isAuthenticated) {
+      refreshData();
+    }
+  }, [authState.isAuthenticated, authState.user?.role]);
 
   const addLead = async (leadData: Omit<Lead, 'id'>) => {
     try {

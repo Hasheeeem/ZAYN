@@ -387,6 +387,25 @@ async def startup_event():
             print("Default admin credentials: admin@lead.com / AdminPass123!")
         else:
             print("Default admin user already exists")
+
+        # Create default sales user if it doesn't exist
+        sales_user = await users_collection.find_one({"email": "sales@lead.com"})
+        if not sales_user:
+            sales_data = {
+                "name": "Sales User",
+                "email": "sales@lead.com",
+                "password": hash_password("SalesPass123!"),
+                "role": "sales",
+                "status": "active",
+                "created_at": datetime.utcnow().isoformat(),
+                "last_login": None,
+                "phone_number": "+1234567891"
+            }
+            result = await users_collection.insert_one(sales_data)
+            print(f"Default sales user created with ID: {result.inserted_id}")
+            print("Default sales credentials: sales@lead.com / SalesPass123!")
+        else:
+            print("Default sales user already exists")
             
     except Exception as e:
         print(f"Startup error: {e}")
@@ -415,7 +434,7 @@ async def health_check():
 # Auth endpoints
 @app.post("/auth/login")
 async def login(user_data: UserLogin):
-    """Authenticate user login"""
+    """Authenticate user login - supports both admin and sales users"""
     email = user_data.email.lower()
     
     print(f"Login attempt for email: {email}")
@@ -443,13 +462,13 @@ async def login(user_data: UserLogin):
     
     print(f"User role: {user.get('role')}")
     
-    # Check if user is admin
-    if user.get("role") != "admin":
-        print("Non-admin user attempted login")
+    # Check if user has valid role (admin or sales)
+    if user.get("role") not in ["admin", "sales"]:
+        print("User with invalid role attempted login")
         await record_login_attempt(email, False)
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required. Only administrators can access this system."
+            detail="Invalid user role. Please contact your administrator."
         )
     
     # Check if user is active
@@ -546,11 +565,17 @@ async def get_salespeople(current_user: dict = Depends(get_current_user)):
         "data": [format_user_response(user) for user in salespeople]
     }
 
-# Lead endpoints
+# Lead endpoints with role-based access control
 @app.get("/leads")
 async def get_leads(current_user: dict = Depends(get_current_user)):
-    """Get all leads"""
-    leads = await leads_collection.find({}).to_list(None)
+    """Get leads based on user role"""
+    if current_user.get("role") == "admin":
+        # Admin can see all leads
+        leads = await leads_collection.find({}).to_list(None)
+    else:
+        # Sales users can only see their assigned leads
+        leads = await leads_collection.find({"assigned_to": str(current_user["_id"])}).to_list(None)
+    
     return {
         "success": True,
         "data": [format_lead_response(lead) for lead in leads]
@@ -587,11 +612,25 @@ async def create_lead(lead_data: LeadCreate, current_user: dict = Depends(get_cu
 
 @app.put("/leads/{lead_id}")
 async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = Depends(get_current_user)):
-    """Update lead"""
+    """Update lead with role-based access control"""
     try:
         object_id = ObjectId(lead_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid lead ID")
+    
+    # Check if lead exists and user has permission
+    lead = await leads_collection.find_one({"_id": object_id})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    # Role-based access control
+    if current_user.get("role") == "sales":
+        # Sales users can only update their assigned leads
+        if lead.get("assigned_to") != str(current_user["_id"]):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only update leads assigned to you"
+            )
     
     update_data = {k: v for k, v in lead_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
     
@@ -631,11 +670,25 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
 
 @app.delete("/leads/{lead_id}")
 async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete lead"""
+    """Delete lead with role-based access control"""
     try:
         object_id = ObjectId(lead_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid lead ID")
+    
+    # Check if lead exists and user has permission
+    lead = await leads_collection.find_one({"_id": object_id})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    
+    # Role-based access control
+    if current_user.get("role") == "sales":
+        # Sales users can only delete their assigned leads
+        if lead.get("assigned_to") != str(current_user["_id"]):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete leads assigned to you"
+            )
     
     result = await leads_collection.delete_one({"_id": object_id})
     
@@ -649,11 +702,22 @@ async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_use
 
 @app.post("/leads/bulk-delete")
 async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Depends(get_current_user)):
-    """Bulk delete leads"""
+    """Bulk delete leads with role-based access control"""
     try:
         object_ids = [ObjectId(id) for id in request.ids]
     except:
         raise HTTPException(status_code=400, detail="Invalid lead IDs")
+    
+    # Role-based access control
+    if current_user.get("role") == "sales":
+        # Sales users can only delete their assigned leads
+        leads = await leads_collection.find({"_id": {"$in": object_ids}}).to_list(None)
+        for lead in leads:
+            if lead.get("assigned_to") != str(current_user["_id"]):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You can only delete leads assigned to you"
+                )
     
     result = await leads_collection.delete_many({"_id": {"$in": object_ids}})
     
@@ -663,8 +727,8 @@ async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Dep
     }
 
 @app.post("/leads/bulk-assign")
-async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Depends(get_current_user)):
-    """Bulk assign leads"""
+async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Depends(get_admin_user)):
+    """Bulk assign leads (Admin only)"""
     try:
         object_ids = [ObjectId(id) for id in request.ids]
     except:

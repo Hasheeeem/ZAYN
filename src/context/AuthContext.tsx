@@ -28,8 +28,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       apiService.getCurrentUser()
         .then(response => {
           if (response.success) {
-            // Verify user is admin
-            if (response.data.role === 'admin') {
+            // Accept both admin and sales users
+            if (response.data.role === 'admin' || response.data.role === 'sales') {
               setAuthState({
                 isAuthenticated: true,
                 user: response.data,
@@ -37,13 +37,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 error: null
               });
             } else {
-              // Non-admin user, clear token and show error
+              // Invalid role, clear token
               apiService.clearToken();
               setAuthState({
                 isAuthenticated: false,
                 user: null,
                 loading: false,
-                error: 'Admin access required. Only administrators can access this system.'
+                error: 'Invalid user role. Please contact your administrator.'
               });
             }
           } else {
@@ -58,7 +58,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setAuthState(prev => ({ 
             ...prev, 
             loading: false,
-            error: error.message?.includes('403') ? 'Admin access required' : null
+            error: error.message?.includes('403') ? 'Access denied' : null
           }));
         });
     }
@@ -71,8 +71,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await apiService.login(email, password);
       
       if (response.success) {
-        // Verify user is admin
-        if (response.data.user.role === 'admin') {
+        // Accept both admin and sales users
+        if (response.data.user.role === 'admin' || response.data.user.role === 'sales') {
           setAuthState({
             isAuthenticated: true,
             user: response.data.user,
@@ -80,12 +80,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             error: null
           });
         } else {
-          // Non-admin user
+          // Invalid role
           apiService.clearToken();
           setAuthState(prev => ({
             ...prev,
             loading: false,
-            error: 'Admin access required. Only administrators can access this system.'
+            error: 'Invalid user role. Please contact your administrator.'
           }));
         }
       } else {
@@ -100,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error.message) {
         if (error.message.includes('403')) {
-          errorMessage = 'Admin access required. Only administrators can access this system.';
+          errorMessage = 'Access denied. Please check your credentials.';
         } else if (error.message.includes('423')) {
           errorMessage = 'Account locked due to too many failed attempts. Please try again later.';
         } else if (error.message.includes('401')) {

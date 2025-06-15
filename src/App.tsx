@@ -1,7 +1,8 @@
 import React from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import AdminLayout from './components/AdminLayout';
-import AdminLogin from './components/AdminLogin';
+import SalesLayout from './components/SalesLayout';
+import UnifiedLogin from './components/UnifiedLogin';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider } from './context/DataContext';
 import { NotificationProvider } from './context/NotificationContext';
@@ -9,11 +10,19 @@ import { NotificationProvider } from './context/NotificationContext';
 const AppContent: React.FC = () => {
   const { authState } = useAuth();
 
-  return (
-    <div className="font-sans">
-      {authState.isAuthenticated ? <AdminLayout /> : <AdminLogin />}
-    </div>
-  );
+  if (!authState.isAuthenticated) {
+    return <UnifiedLogin />;
+  }
+
+  // Route based on user role
+  if (authState.user?.role === 'admin') {
+    return <AdminLayout />;
+  } else if (authState.user?.role === 'sales') {
+    return <SalesLayout />;
+  }
+
+  // Fallback for unknown roles
+  return <UnifiedLogin />;
 };
 
 function App() {
