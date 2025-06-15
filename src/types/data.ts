@@ -50,6 +50,52 @@ export const DataContext = createContext<DataContextType>({
 });
 
 export const useData = () => useContext(DataContext);
+export interface Lead {
+  id: number | string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  domain: string;
+  price: number;
+  clicks: number;
+  update: string;
+  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
+  source: 'website' | 'referral' | 'call' | 'other';
+  assignedTo?: string;
+  notes?: string;
+  createdAt: string;
+  // New fields for the updated form
+  companyRepresentativeName?: string;
+  companyName?: string;
+  pricePaid?: number;
+  invoiceBilled?: number;
+}
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'sales';
+  status: 'active' | 'inactive';
+  lastLogin?: string;
+  phone_number?: string;
+  created_at?: string;
+  performance?: {
+    leadsConverted: number;
+    conversionRate: number;
+  };
+}
+
+export interface Opportunity {
+  id: number;
+  domain: string;
+  price: number;
+  registrar: string;
+  expiryDate: string;
+  status: 'registered' | 'expiring' | 'expired' | 'flagged';
+  lastChecked: string;
+}
 
 export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [leads, setLeads] = useState<Lead[]>([]);

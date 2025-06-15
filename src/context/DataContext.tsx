@@ -26,6 +26,8 @@ interface DataContextType {
   refreshData: () => Promise<void>;
   updateUserTargets: (userId: string, targets: Partial<UserTargets>) => void;
   calculateUserProgress: (userId: string) => { salesProgress: number; invoiceProgress: number };
+  getUserTargets: (userId: string) => Promise<UserTargets | null>;
+  setUserTargets: (userId: string, targets: { salesTarget: number; invoiceTarget: number }) => Promise<void>;
 }
 
 export const DataContext = createContext<DataContextType>({
@@ -42,7 +44,9 @@ export const DataContext = createContext<DataContextType>({
   filterLeads: () => [],
   refreshData: async () => {},
   updateUserTargets: () => {},
-  calculateUserProgress: () => ({ salesProgress: 0, invoiceProgress: 0 })
+  calculateUserProgress: () => ({ salesProgress: 0, invoiceProgress: 0 }),
+  getUserTargets: async () => null,
+  setUserTargets: async () => {}
 });
 
 export const useData = () => useContext(DataContext);
@@ -51,7 +55,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [leads, setLeads] = useState<Lead[]>([]);
   const [managementUsers, setManagementUsers] = useState<User[]>([]);
   const [salespeople, setSalespeople] = useState<User[]>([]);
-  const [userTargets, setUserTargets] = useState<Record<string, UserTargets>>({});
+  const [userTargets, setUserTargetsState] = useState<Record<string, UserTargets>>({});
   const [loading, setLoading] = useState(false);
   const { showNotification } = useNotification();
   const { authState } = useAuth();
@@ -64,14 +68,116 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { salesAchieved, invoiceAchieved };
   };
 
+  const loadUserTargets = async () => {
+    try {
+      if (authState.user?.role === 'admin') {
+        // Load all targets for admin
+        const response = await apiService.getAllTargets();
+        if (response.success) {
+          const targetsMap: Record<string, UserTargets> = {};
+          response.data.forEach((target: any) => {
+            targetsMap[target.userId] = {
+              salesTarget: target.salesTarget,
+              invoiceTarget: target.invoiceTarget,
+              salesAchieved: target.salesAchieved,
+              invoiceAchieved: target.invoiceAchieved
+            };
+          });
+          setUserTargetsState(targetsMap);
+        }
+      } else if (authState.user?.id) {
+        // Load only current user's targets for sales users
+        const response = await apiService.getUserTargets(authState.user.id.toString());
+        if (response.success && response.data) {
+          setUserTargetsState({
+            [authState.user.id.toString()]: {
+              salesTarget: response.data.salesTarget,
+              invoiceTarget: response.data.invoiceTarget,
+              salesAchieved: response.data.salesAchieved,
+              invoiceAchieved: response.data.invoiceAchieved
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user targets:', error);
+    }
+  };
+
   const updateUserTargets = (userId: string, targets: Partial<UserTargets>) => {
-    setUserTargets(prev => ({
+    setUserTargetsState(prev => ({
       ...prev,
       [userId]: {
         ...prev[userId],
         ...targets
       }
     }));
+  };
+
+  const getUserTargets = async (userId: string): Promise<UserTargets | null> => {
+    try {
+      console.log('Getting targets for user:', userId);
+      const response = await apiService.getUserTargets(userId);
+      console.log('Get targets response:', response);
+      
+      if (response.success && response.data) {
+        return {
+          salesTarget: response.data.salesTarget || 0,
+          invoiceTarget: response.data.invoiceTarget || 0,
+          salesAchieved: response.data.salesAchieved || 0,
+          invoiceAchieved: response.data.invoiceAchieved || 0
+        };
+      }
+      return {
+        salesTarget: 0,
+        invoiceTarget: 0,
+        salesAchieved: 0,
+        invoiceAchieved: 0
+      };
+    } catch (error) {
+      console.error('Error getting user targets:', error);
+      return {
+        salesTarget: 0,
+        invoiceTarget: 0,
+        salesAchieved: 0,
+        invoiceAchieved: 0
+      };
+    }
+  };
+
+  const setUserTargets = async (userId: string, targets: { salesTarget: number; invoiceTarget: number }) => {
+    try {
+      console.log('Setting targets for user:', userId, targets);
+      
+      const response = await apiService.createOrUpdateTargets({
+        userId,
+        salesTarget: targets.salesTarget,
+        invoiceTarget: targets.invoiceTarget,
+        period: 'monthly'
+      });
+
+      console.log('Set targets response:', response);
+
+      if (response.success) {
+        // Update local state
+        setUserTargetsState(prev => ({
+          ...prev,
+          [userId]: {
+            salesTarget: targets.salesTarget,
+            invoiceTarget: targets.invoiceTarget,
+            salesAchieved: response.data.salesAchieved || 0,
+            invoiceAchieved: response.data.invoiceAchieved || 0
+          }
+        }));
+        showNotification('Targets updated successfully', 'success');
+      } else {
+        throw new Error(response.message || 'Failed to update targets');
+      }
+    } catch (error: any) {
+      console.error('Error setting user targets:', error);
+      showNotification(error.message || 'Failed to update targets', 'error');
+      throw error;
+    }
   };
 
   const calculateUserProgress = (userId: string) => {
@@ -91,13 +197,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const leadsResponse = await apiService.getLeads();
       if (leadsResponse.success) {
         setLeads(leadsResponse.data);
-        
-        // Update user achievements based on leads
-        Object.keys(userTargets).forEach(userId => {
-          const achievements = calculateUserAchievements(userId, leadsResponse.data);
-          updateUserTargets(userId, achievements);
-        });
       }
+
+      // Load user targets
+      await loadUserTargets();
 
       // Only fetch users and salespeople if user is admin
       if (authState.user?.role === 'admin') {
@@ -359,7 +462,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       filterLeads,
       refreshData,
       updateUserTargets,
-      calculateUserProgress
+      calculateUserProgress,
+      getUserTargets,
+      setUserTargets
     }}>
       {children}
     </DataContext.Provider>
