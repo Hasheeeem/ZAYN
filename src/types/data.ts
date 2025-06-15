@@ -1,22 +1,23 @@
 export interface Lead {
   id: number | string;
-  companyRepresentativeName?: string;
-  companyName?: string;
-  firstName?: string;
-  lastName?: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone?: string;
-  domain?: string;
-  price?: number;
-  pricePaid?: number;
-  invoiceBilled?: number;
-  clicks?: number;
+  domain: string;
+  price: number;
+  clicks: number;
   update: string;
   status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
   source: 'website' | 'referral' | 'call' | 'other';
   assignedTo?: string;
   notes?: string;
   createdAt: string;
+  // Additional fields for backward compatibility
+  companyRepresentativeName?: string;
+  companyName?: string;
+  pricePaid?: number;
+  invoiceBilled?: number;
 }
 
 export interface User {

@@ -87,23 +87,67 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addLead = async (leadData: Omit<Lead, 'id'>) => {
     try {
-      const response = await apiService.createLead(leadData);
+      // Transform the data to match backend expectations
+      const backendData = {
+        firstName: leadData.firstName,
+        lastName: leadData.lastName || '',
+        email: leadData.email,
+        phone: leadData.phone || null,
+        domain: leadData.domain,
+        price: Number(leadData.price) || 0,
+        clicks: Number(leadData.clicks) || 0,
+        status: leadData.status,
+        source: leadData.source,
+        assignedTo: leadData.assignedTo || null,
+        notes: leadData.notes || null
+      };
+
+      console.log('Sending lead data to backend:', backendData);
+      
+      const response = await apiService.createLead(backendData);
       if (response.success) {
         setLeads(prev => [...prev, response.data]);
         showNotification('Lead added successfully', 'success');
       } else {
         throw new Error(response.message || 'Failed to add lead');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding lead:', error);
-      showNotification('Failed to add lead', 'error');
+      let errorMessage = 'Failed to add lead';
+      
+      if (error.message) {
+        if (error.message.includes('422')) {
+          errorMessage = 'Invalid data format. Please check all required fields.';
+        } else if (error.message.includes('400')) {
+          errorMessage = 'Bad request. Please check your input data.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      showNotification(errorMessage, 'error');
       throw error;
     }
   };
 
   const updateLead = async (updatedLead: Lead) => {
     try {
-      const response = await apiService.updateLead(updatedLead.id.toString(), updatedLead);
+      // Transform the data to match backend expectations
+      const backendData = {
+        firstName: updatedLead.firstName,
+        lastName: updatedLead.lastName || '',
+        email: updatedLead.email,
+        phone: updatedLead.phone || null,
+        domain: updatedLead.domain,
+        price: Number(updatedLead.price) || 0,
+        clicks: Number(updatedLead.clicks) || 0,
+        status: updatedLead.status,
+        source: updatedLead.source,
+        assignedTo: updatedLead.assignedTo || null,
+        notes: updatedLead.notes || null
+      };
+
+      const response = await apiService.updateLead(updatedLead.id.toString(), backendData);
       if (response.success) {
         setLeads(prev => prev.map(lead => 
           lead.id === updatedLead.id ? response.data : lead

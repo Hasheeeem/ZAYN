@@ -22,35 +22,44 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   
   const [form, setForm] = useState<Lead>({
     id: initialData?.id || '',
-    companyRepresentativeName: '',
-    companyName: '',
-    email: '',
-    phone: '',
-    status: 'new',
-    source: 'website',
-    pricePaid: 0,
-    invoiceBilled: 0,
-    update: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    notes: '',
-    createdAt: new Date().toISOString(),
-    assignedTo: isAdmin ? '' : authState.user?.id.toString() || ''
+    firstName: initialData?.firstName || initialData?.companyRepresentativeName || '',
+    lastName: initialData?.lastName || '',
+    email: initialData?.email || '',
+    phone: initialData?.phone || '',
+    domain: initialData?.domain || initialData?.companyName || '',
+    price: initialData?.price || initialData?.pricePaid || 0,
+    clicks: initialData?.clicks || 0,
+    status: initialData?.status || 'new',
+    source: initialData?.source || 'website',
+    assignedTo: initialData?.assignedTo || (isAdmin ? '' : authState.user?.id.toString() || ''),
+    notes: initialData?.notes || '',
+    update: initialData?.update || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    createdAt: initialData?.createdAt || new Date().toISOString(),
+    // Keep the additional fields for compatibility
+    companyRepresentativeName: initialData?.companyRepresentativeName || '',
+    companyName: initialData?.companyName || '',
+    pricePaid: initialData?.pricePaid || 0,
+    invoiceBilled: initialData?.invoiceBilled || 0
   });
 
   useEffect(() => {
     if (initialData) {
-      setForm(initialData);
+      setForm({
+        ...initialData,
+        // Ensure required fields are mapped correctly
+        firstName: initialData.firstName || initialData.companyRepresentativeName || '',
+        lastName: initialData.lastName || '',
+        domain: initialData.domain || initialData.companyName || '',
+        price: initialData.price || initialData.pricePaid || 0
+      });
     }
   }, [initialData]);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!form.companyRepresentativeName?.trim()) {
-      newErrors.companyRepresentativeName = 'Company representative name is required';
-    }
-
-    if (!form.companyName?.trim()) {
-      newErrors.companyName = 'Company name is required';
+    if (!form.firstName?.trim()) {
+      newErrors.firstName = 'First name is required';
     }
 
     if (!form.email.trim()) {
@@ -59,16 +68,16 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
       newErrors.email = 'Invalid email format';
     }
 
-    if (!form.phone?.trim()) {
-      newErrors.phone = 'Phone number is required';
+    if (!form.domain?.trim()) {
+      newErrors.domain = 'Domain is required';
     }
 
-    if (form.pricePaid < 0) {
-      newErrors.pricePaid = 'Price paid cannot be negative';
+    if (form.price < 0) {
+      newErrors.price = 'Price cannot be negative';
     }
 
-    if (form.invoiceBilled < 0) {
-      newErrors.invoiceBilled = 'Invoice billed cannot be negative';
+    if (form.clicks < 0) {
+      newErrors.clicks = 'Clicks cannot be negative';
     }
 
     if (isAdmin && !form.assignedTo) {
@@ -89,8 +98,27 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
     setSaving(true);
     try {
-      await onSave(form);
+      // Create the payload that matches the backend schema
+      const leadPayload = {
+        ...form,
+        // Ensure we're sending the correct field names that the backend expects
+        firstName: form.firstName,
+        lastName: form.lastName || '',
+        email: form.email,
+        phone: form.phone || null,
+        domain: form.domain,
+        price: Number(form.price) || 0,
+        clicks: Number(form.clicks) || 0,
+        status: form.status,
+        source: form.source,
+        assignedTo: form.assignedTo || null,
+        notes: form.notes || null
+      };
+
+      console.log('Submitting lead payload:', leadPayload);
+      await onSave(leadPayload);
     } catch (error) {
+      console.error('Error saving lead:', error);
       // Error is handled in the parent component
     } finally {
       setSaving(false);
@@ -101,7 +129,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     const { name, value } = e.target;
     setForm(prev => ({ 
       ...prev, 
-      [name]: name === 'pricePaid' || name === 'invoiceBilled' ? parseFloat(value) || 0 : value 
+      [name]: name === 'price' || name === 'clicks' ? parseFloat(value) || 0 : value 
     }));
     
     if (errors[name]) {
@@ -113,43 +141,38 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     <form onSubmit={handleSubmit} className="space-y-4 p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="companyRepresentativeName" className="block text-sm font-medium text-gray-700 mb-1">
-            Company Representative Name *
+          <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+            First Name *
           </label>
           <input
-            id="companyRepresentativeName"
-            name="companyRepresentativeName"
+            id="firstName"
+            name="firstName"
             type="text"
-            value={form.companyRepresentativeName || ''}
+            value={form.firstName || ''}
             onChange={handleChange}
             className={`w-full px-4 py-2 rounded-lg border ${
-              errors.companyRepresentativeName ? 'border-red-500' : 'border-gray-300'
+              errors.firstName ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading || saving}
           />
-          {errors.companyRepresentativeName && (
-            <p className="mt-1 text-sm text-red-500">{errors.companyRepresentativeName}</p>
+          {errors.firstName && (
+            <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
           )}
         </div>
 
         <div>
-          <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
-            Company Name *
+          <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+            Last Name
           </label>
           <input
-            id="companyName"
-            name="companyName"
+            id="lastName"
+            name="lastName"
             type="text"
-            value={form.companyName || ''}
+            value={form.lastName || ''}
             onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.companyName ? 'border-red-500' : 'border-gray-300'
-            } focus:ring-2 focus:ring-indigo-500`}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
             disabled={isLoading || saving}
           />
-          {errors.companyName && (
-            <p className="mt-1 text-sm text-red-500">{errors.companyName}</p>
-          )}
         </div>
 
         <div>
@@ -174,7 +197,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
         <div>
           <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-            Phone Number *
+            Phone Number
           </label>
           <input
             id="phone"
@@ -182,13 +205,70 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             type="tel"
             value={form.phone || ''}
             onChange={handleChange}
+            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            disabled={isLoading || saving}
+          />
+        </div>
+
+        <div>
+          <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-1">
+            Domain *
+          </label>
+          <input
+            id="domain"
+            name="domain"
+            type="text"
+            value={form.domain || ''}
+            onChange={handleChange}
             className={`w-full px-4 py-2 rounded-lg border ${
-              errors.phone ? 'border-red-500' : 'border-gray-300'
+              errors.domain ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
+            disabled={isLoading || saving}
+            placeholder="example.com"
+          />
+          {errors.domain && (
+            <p className="mt-1 text-sm text-red-500">{errors.domain}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
+            Price
+          </label>
+          <input
+            id="price"
+            name="price"
+            type="number"
+            step="0.01"
+            value={form.price || 0}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.price ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading || saving}
           />
-          {errors.phone && (
-            <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
+          {errors.price && (
+            <p className="mt-1 text-sm text-red-500">{errors.price}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="clicks" className="block text-sm font-medium text-gray-700 mb-1">
+            Clicks
+          </label>
+          <input
+            id="clicks"
+            name="clicks"
+            type="number"
+            value={form.clicks || 0}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.clicks ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
+            disabled={isLoading || saving}
+          />
+          {errors.clicks && (
+            <p className="mt-1 text-sm text-red-500">{errors.clicks}</p>
           )}
         </div>
 
@@ -258,48 +338,6 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
             )}
           </div>
         )}
-
-        <div>
-          <label htmlFor="pricePaid" className="block text-sm font-medium text-gray-700 mb-1">
-            Price Paid (Sales Done)
-          </label>
-          <input
-            id="pricePaid"
-            name="pricePaid"
-            type="number"
-            step="0.01"
-            value={form.pricePaid || 0}
-            onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.pricePaid ? 'border-red-500' : 'border-gray-300'
-            } focus:ring-2 focus:ring-indigo-500`}
-            disabled={isLoading || saving}
-          />
-          {errors.pricePaid && (
-            <p className="mt-1 text-sm text-red-500">{errors.pricePaid}</p>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="invoiceBilled" className="block text-sm font-medium text-gray-700 mb-1">
-            Invoice Billed
-          </label>
-          <input
-            id="invoiceBilled"
-            name="invoiceBilled"
-            type="number"
-            step="0.01"
-            value={form.invoiceBilled || 0}
-            onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.invoiceBilled ? 'border-red-500' : 'border-gray-300'
-            } focus:ring-2 focus:ring-indigo-500`}
-            disabled={isLoading || saving}
-          />
-          {errors.invoiceBilled && (
-            <p className="mt-1 text-sm text-red-500">{errors.invoiceBilled}</p>
-          )}
-        </div>
       </div>
 
       <div>
@@ -324,12 +362,13 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           variant="secondary"
           disabled={isLoading || saving}
         />
-        <ActionButton
-          label={saving ? 'Saving...' : 'Save Lead'}
-          onClick={handleSubmit}
-          variant="primary"
+        <button
+          type="submit"
           disabled={isLoading || saving}
-        />
+          className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+        >
+          {saving ? 'Saving...' : 'Save Lead'}
+        </button>
       </div>
     </form>
   );
