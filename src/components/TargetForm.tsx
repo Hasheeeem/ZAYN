@@ -175,9 +175,16 @@ const TargetForm: React.FC<TargetFormProps> = ({
         <button
           type="submit"
           disabled={isLoading || saving}
-          className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+          className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center gap-2"
         >
-          {saving ? 'Saving...' : 'Set Targets'}
+          {saving ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              Saving...
+            </>
+          ) : (
+            'Set Targets'
+          )}
         </button>
       </div>
     </form>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { UserPlus, Users, Target } from 'lucide-react';
+import { UserPlus, Users, Settings } from 'lucide-react';
 import ActionButton from '../components/ActionButton';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
@@ -233,14 +233,14 @@ const UserSettings: React.FC = () => {
       label: 'Actions',
       render: (_: any, user: User) => (
         <div className="flex justify-end gap-2">
-          <button
+          <ActionButton
+            label="Set Targets"
+            icon={<Settings size={16} />}
             onClick={() => handleOpenTargetModal(user)}
-            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-            title="Set Targets"
+            variant="primary"
+            size="sm"
             disabled={isLoading}
-          >
-            <Target size={16} />
-          </button>
+          />
         </div>
       )
     }
