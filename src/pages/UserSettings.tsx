@@ -18,13 +18,8 @@ interface NewUserFormData {
   role: 'admin' | 'sales';
 }
 
-interface UserTargets {
-  salesTarget: number;
-  invoiceTarget: number;
-}
-
 const UserSettings: React.FC = () => {
-  const { managementUsers, refreshData } = useData();
+  const { managementUsers, refreshData, userTargets, setUserTargets, getUserTargets } = useData();
   const { showNotification } = useNotification();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -33,7 +28,7 @@ const UserSettings: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [userTargets, setUserTargets] = useState<Record<string, UserTargets>>({});
+  const [currentUserTargets, setCurrentUserTargets] = useState<{ salesTarget: number; invoiceTarget: number } | null>(null);
   const [newUserForm, setNewUserForm] = useState<NewUserFormData>({
     name: '',
     password: '',
@@ -118,23 +113,35 @@ const UserSettings: React.FC = () => {
     }
   };
 
-  const handleSetTargets = async (targets: UserTargets) => {
+  const handleSetTargets = async (targets: { salesTarget: number; invoiceTarget: number }) => {
     if (!selectedUser) return;
 
     setIsLoading(true);
     try {
-      // Store targets in local state (in a real app, this would be saved to backend)
-      setUserTargets(prev => ({
-        ...prev,
-        [selectedUser.id]: targets
-      }));
-      
-      showNotification('Targets set successfully', 'success');
+      await setUserTargets(selectedUser.id.toString(), targets);
       setIsTargetModalOpen(false);
       setSelectedUser(null);
+      setCurrentUserTargets(null);
     } catch (error) {
       console.error('Error setting targets:', error);
-      showNotification('Failed to set targets. Please try again.', 'error');
+      // Error is already handled in setUserTargets
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenTargetModal = async (user: User) => {
+    setSelectedUser(user);
+    setIsLoading(true);
+    
+    try {
+      const targets = await getUserTargets(user.id.toString());
+      setCurrentUserTargets(targets);
+      setIsTargetModalOpen(true);
+    } catch (error) {
+      console.error('Error loading user targets:', error);
+      setCurrentUserTargets(null);
+      setIsTargetModalOpen(true);
     } finally {
       setIsLoading(false);
     }
@@ -193,8 +200,8 @@ const UserSettings: React.FC = () => {
       key: 'targets',
       label: 'Monthly Targets',
       render: (value: string, user: User) => {
-        const targets = userTargets[user.id];
-        if (!targets) {
+        const targets = userTargets[user.id.toString()];
+        if (!targets || (targets.salesTarget === 0 && targets.invoiceTarget === 0)) {
           return <span className="text-gray-500 text-sm">Not set</span>;
         }
         return (
@@ -227,12 +234,10 @@ const UserSettings: React.FC = () => {
       render: (_: any, user: User) => (
         <div className="flex justify-end gap-2">
           <button
-            onClick={() => {
-              setSelectedUser(user);
-              setIsTargetModalOpen(true);
-            }}
+            onClick={() => handleOpenTargetModal(user)}
             className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
             title="Set Targets"
+            disabled={isLoading}
           >
             <Target size={16} />
           </button>
@@ -477,6 +482,7 @@ const UserSettings: React.FC = () => {
         onClose={() => {
           setIsTargetModalOpen(false);
           setSelectedUser(null);
+          setCurrentUserTargets(null);
         }}
         title="Set Monthly Targets"
         size="lg"
@@ -486,11 +492,12 @@ const UserSettings: React.FC = () => {
           <TargetForm
             userId={selectedUser.id.toString()}
             userName={selectedUser.name}
-            currentTargets={userTargets[selectedUser.id]}
+            currentTargets={currentUserTargets || undefined}
             onSave={handleSetTargets}
             onCancel={() => {
               setIsTargetModalOpen(false);
               setSelectedUser(null);
+              setCurrentUserTargets(null);
             }}
             isLoading={isLoading}
           />

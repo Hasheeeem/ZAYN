@@ -198,6 +198,35 @@ class ApiService {
     return this.request(apiConfig.endpoints.salespeople.list);
   }
 
+  // Target methods
+  async getAllTargets() {
+    return this.request('/targets');
+  }
+
+  async getUserTargets(userId: string) {
+    return this.request(`/targets/${userId}`);
+  }
+
+  async createOrUpdateTargets(targetData: any) {
+    return this.request('/targets', {
+      method: 'POST',
+      body: JSON.stringify(targetData),
+    });
+  }
+
+  async updateTargets(userId: string, targetData: any) {
+    return this.request(`/targets/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(targetData),
+    });
+  }
+
+  async deleteTargets(userId: string) {
+    return this.request(`/targets/${userId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Management methods
   async getManagementData(type: string) {
     return this.request(`/management/${type}`);

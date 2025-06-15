@@ -71,6 +71,7 @@ statuses_collection = db.statuses
 sources_collection = db.sources
 ownership_collection = db.ownership
 login_attempts_collection = db.login_attempts
+targets_collection = db.targets
 
 # Enhanced Pydantic models
 class UserCreate(BaseModel):
@@ -105,6 +106,37 @@ class UserResponse(BaseModel):
     last_login: Optional[str] = None
     phone_number: Optional[str] = None
     created_at: Optional[str] = None
+
+class TargetCreate(BaseModel):
+    user_id: str = Field(alias="userId")
+    sales_target: float = Field(alias="salesTarget", ge=0)
+    invoice_target: float = Field(alias="invoiceTarget", ge=0)
+    period: str = Field(default="monthly", pattern="^(monthly|quarterly|yearly)$")
+    
+    class Config:
+        populate_by_name = True
+
+class TargetUpdate(BaseModel):
+    sales_target: Optional[float] = Field(None, alias="salesTarget", ge=0)
+    invoice_target: Optional[float] = Field(None, alias="invoiceTarget", ge=0)
+    period: Optional[str] = Field(None, pattern="^(monthly|quarterly|yearly)$")
+    
+    class Config:
+        populate_by_name = True
+
+class TargetResponse(BaseModel):
+    id: str
+    user_id: str = Field(alias="userId")
+    sales_target: float = Field(alias="salesTarget")
+    invoice_target: float = Field(alias="invoiceTarget")
+    sales_achieved: float = Field(alias="salesAchieved")
+    invoice_achieved: float = Field(alias="invoiceAchieved")
+    period: str
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+    
+    class Config:
+        populate_by_name = True
 
 class LeadCreate(BaseModel):
     first_name: str = Field(alias="firstName", min_length=1, max_length=100)
@@ -308,6 +340,31 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)):
         )
     return current_user
 
+async def calculate_user_achievements(user_id: str):
+    """Calculate user's sales and invoice achievements from leads"""
+    user_leads = await leads_collection.find({"assigned_to": user_id}).to_list(None)
+    
+    sales_achieved = sum(lead.get("price", 0) for lead in user_leads)
+    invoice_achieved = sum(lead.get("clicks", 0) for lead in user_leads)
+    
+    return sales_achieved, invoice_achieved
+
+async def update_user_targets_achievements(user_id: str):
+    """Update user's target achievements based on their leads"""
+    sales_achieved, invoice_achieved = await calculate_user_achievements(user_id)
+    
+    await targets_collection.update_one(
+        {"user_id": user_id},
+        {
+            "$set": {
+                "sales_achieved": sales_achieved,
+                "invoice_achieved": invoice_achieved,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+        },
+        upsert=False
+    )
+
 def format_user_response(user: dict) -> dict:
     """Format user response"""
     return {
@@ -340,6 +397,20 @@ def format_lead_response(lead: dict) -> dict:
         "createdAt": lead["created_at"]
     }
 
+def format_target_response(target: dict) -> dict:
+    """Format target response"""
+    return {
+        "id": str(target["_id"]),
+        "userId": target["user_id"],
+        "salesTarget": target["sales_target"],
+        "invoiceTarget": target["invoice_target"],
+        "salesAchieved": target.get("sales_achieved", 0),
+        "invoiceAchieved": target.get("invoice_achieved", 0),
+        "period": target["period"],
+        "createdAt": target["created_at"],
+        "updatedAt": target["updated_at"]
+    }
+
 def format_management_response(item: dict) -> dict:
     """Format management item response"""
     formatted = {
@@ -365,6 +436,8 @@ async def startup_event():
         await users_collection.create_index("email", unique=True)
         await leads_collection.create_index("email")
         await leads_collection.create_index("domain")
+        await leads_collection.create_index("assigned_to")
+        await targets_collection.create_index("user_id", unique=True)
         await login_attempts_collection.create_index("email", unique=True)
         await login_attempts_collection.create_index("locked_until", expireAfterSeconds=0)
         print("Database indexes created successfully!")
@@ -565,6 +638,183 @@ async def get_salespeople(current_user: dict = Depends(get_current_user)):
         "data": [format_user_response(user) for user in salespeople]
     }
 
+# Target endpoints
+@app.get("/targets")
+async def get_all_targets(current_user: dict = Depends(get_admin_user)):
+    """Get all user targets (Admin only)"""
+    targets = await targets_collection.find({}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_target_response(target) for target in targets]
+    }
+
+@app.get("/targets/{user_id}")
+async def get_user_targets(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get targets for a specific user"""
+    # Check if current user can access these targets
+    if current_user.get("role") != "admin" and str(current_user["_id"]) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own targets"
+        )
+    
+    target = await targets_collection.find_one({"user_id": user_id})
+    if not target:
+        # Return default empty targets
+        return {
+            "success": True,
+            "data": {
+                "userId": user_id,
+                "salesTarget": 0,
+                "invoiceTarget": 0,
+                "salesAchieved": 0,
+                "invoiceAchieved": 0,
+                "period": "monthly"
+            }
+        }
+    
+    return {
+        "success": True,
+        "data": format_target_response(target)
+    }
+
+@app.post("/targets")
+async def create_or_update_targets(target_data: TargetCreate, current_user: dict = Depends(get_admin_user)):
+    """Create or update user targets (Admin only)"""
+    try:
+        # Verify the user exists
+        user = await users_collection.find_one({"_id": ObjectId(target_data.user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Calculate current achievements
+        sales_achieved, invoice_achieved = await calculate_user_achievements(target_data.user_id)
+        
+        target_dict = {
+            "user_id": target_data.user_id,
+            "sales_target": target_data.sales_target,
+            "invoice_target": target_data.invoice_target,
+            "sales_achieved": sales_achieved,
+            "invoice_achieved": invoice_achieved,
+            "period": target_data.period,
+            "updated_at": datetime.utcnow().isoformat(),
+            "updated_by": str(current_user["_id"])
+        }
+        
+        # Check if target already exists
+        existing_target = await targets_collection.find_one({"user_id": target_data.user_id})
+        
+        if existing_target:
+            # Update existing target
+            result = await targets_collection.update_one(
+                {"user_id": target_data.user_id},
+                {"$set": target_dict}
+            )
+            target_dict["_id"] = existing_target["_id"]
+            target_dict["created_at"] = existing_target["created_at"]
+        else:
+            # Create new target
+            target_dict["created_at"] = datetime.utcnow().isoformat()
+            result = await targets_collection.insert_one(target_dict)
+            target_dict["_id"] = result.inserted_id
+        
+        return {
+            "success": True,
+            "data": format_target_response(target_dict),
+            "message": "Targets updated successfully"
+        }
+        
+    except Exception as e:
+        print(f"Error creating/updating targets: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update targets"
+        )
+
+@app.put("/targets/{user_id}")
+async def update_targets(user_id: str, target_data: TargetUpdate, current_user: dict = Depends(get_admin_user)):
+    """Update user targets (Admin only)"""
+    try:
+        # Verify the user exists
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Get existing target
+        existing_target = await targets_collection.find_one({"user_id": user_id})
+        if not existing_target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target not found for this user"
+            )
+        
+        # Calculate current achievements
+        sales_achieved, invoice_achieved = await calculate_user_achievements(user_id)
+        
+        update_data = {
+            "sales_achieved": sales_achieved,
+            "invoice_achieved": invoice_achieved,
+            "updated_at": datetime.utcnow().isoformat(),
+            "updated_by": str(current_user["_id"])
+        }
+        
+        # Update only provided fields
+        if target_data.sales_target is not None:
+            update_data["sales_target"] = target_data.sales_target
+        if target_data.invoice_target is not None:
+            update_data["invoice_target"] = target_data.invoice_target
+        if target_data.period is not None:
+            update_data["period"] = target_data.period
+        
+        result = await targets_collection.update_one(
+            {"user_id": user_id},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target not found"
+            )
+        
+        # Get updated target
+        updated_target = await targets_collection.find_one({"user_id": user_id})
+        
+        return {
+            "success": True,
+            "data": format_target_response(updated_target),
+            "message": "Targets updated successfully"
+        }
+        
+    except Exception as e:
+        print(f"Error updating targets: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update targets"
+        )
+
+@app.delete("/targets/{user_id}")
+async def delete_targets(user_id: str, current_user: dict = Depends(get_admin_user)):
+    """Delete user targets (Admin only)"""
+    result = await targets_collection.delete_one({"user_id": user_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target not found"
+        )
+    
+    return {
+        "success": True,
+        "message": "Targets deleted successfully"
+    }
+
 # Lead endpoints with role-based access control
 @app.get("/leads")
 async def get_leads(current_user: dict = Depends(get_current_user)):
@@ -604,6 +854,10 @@ async def create_lead(lead_data: LeadCreate, current_user: dict = Depends(get_cu
     result = await leads_collection.insert_one(lead_dict)
     lead_dict["_id"] = result.inserted_id
     
+    # Update target achievements if lead is assigned
+    if lead_data.assigned_to:
+        await update_user_targets_achievements(lead_data.assigned_to)
+    
     return {
         "success": True,
         "data": format_lead_response(lead_dict),
@@ -622,6 +876,9 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
     lead = await leads_collection.find_one({"_id": object_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    
+    # Store old assigned user for target updates
+    old_assigned_to = lead.get("assigned_to")
     
     # Role-based access control
     if current_user.get("role") == "sales":
@@ -662,6 +919,18 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
             raise HTTPException(status_code=404, detail="Lead not found")
     
     updated_lead = await leads_collection.find_one({"_id": object_id})
+    new_assigned_to = updated_lead.get("assigned_to")
+    
+    # Update target achievements for affected users
+    users_to_update = set()
+    if old_assigned_to:
+        users_to_update.add(old_assigned_to)
+    if new_assigned_to:
+        users_to_update.add(new_assigned_to)
+    
+    for user_id in users_to_update:
+        await update_user_targets_achievements(user_id)
+    
     return {
         "success": True,
         "data": format_lead_response(updated_lead),
@@ -681,6 +950,8 @@ async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_use
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     
+    assigned_to = lead.get("assigned_to")
+    
     # Role-based access control
     if current_user.get("role") == "sales":
         # Sales users can only delete their assigned leads
@@ -695,6 +966,10 @@ async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_use
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Lead not found")
     
+    # Update target achievements if lead was assigned
+    if assigned_to:
+        await update_user_targets_achievements(assigned_to)
+    
     return {
         "success": True,
         "message": "Lead deleted successfully"
@@ -708,18 +983,32 @@ async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Dep
     except:
         raise HTTPException(status_code=400, detail="Invalid lead IDs")
     
+    # Get leads to check permissions and track assigned users
+    leads = await leads_collection.find({"_id": {"$in": object_ids}}).to_list(None)
+    assigned_users = set()
+    
     # Role-based access control
     if current_user.get("role") == "sales":
         # Sales users can only delete their assigned leads
-        leads = await leads_collection.find({"_id": {"$in": object_ids}}).to_list(None)
         for lead in leads:
             if lead.get("assigned_to") != str(current_user["_id"]):
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You can only delete leads assigned to you"
                 )
+            if lead.get("assigned_to"):
+                assigned_users.add(lead["assigned_to"])
+    else:
+        # Admin can delete any leads, track all assigned users
+        for lead in leads:
+            if lead.get("assigned_to"):
+                assigned_users.add(lead["assigned_to"])
     
     result = await leads_collection.delete_many({"_id": {"$in": object_ids}})
+    
+    # Update target achievements for all affected users
+    for user_id in assigned_users:
+        await update_user_targets_achievements(user_id)
     
     return {
         "success": True,
@@ -734,6 +1023,13 @@ async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Dep
     except:
         raise HTTPException(status_code=400, detail="Invalid lead IDs")
     
+    # Get leads to track old assignments
+    leads = await leads_collection.find({"_id": {"$in": object_ids}}).to_list(None)
+    old_assigned_users = set()
+    for lead in leads:
+        if lead.get("assigned_to"):
+            old_assigned_users.add(lead["assigned_to"])
+    
     result = await leads_collection.update_many(
         {"_id": {"$in": object_ids}},
         {
@@ -744,6 +1040,13 @@ async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Dep
             }
         }
     )
+    
+    # Update target achievements for all affected users
+    affected_users = old_assigned_users.copy()
+    affected_users.add(request.sales_person_id)
+    
+    for user_id in affected_users:
+        await update_user_targets_achievements(user_id)
     
     return {
         "success": True,

@@ -29,6 +29,7 @@ const TargetForm: React.FC<TargetFormProps> = ({
     invoiceTarget: currentTargets?.invoiceTarget || 0
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -53,10 +54,13 @@ const TargetForm: React.FC<TargetFormProps> = ({
       return;
     }
 
+    setSaving(true);
     try {
       await onSave(targets);
     } catch (error) {
       console.error('Error saving targets:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -100,7 +104,7 @@ const TargetForm: React.FC<TargetFormProps> = ({
                 errors.salesTarget ? 'border-red-500' : 'border-gray-300'
               } focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
               placeholder="0.00"
-              disabled={isLoading}
+              disabled={isLoading || saving}
             />
           </div>
           {errors.salesTarget && (
@@ -131,7 +135,7 @@ const TargetForm: React.FC<TargetFormProps> = ({
                 errors.invoiceTarget ? 'border-red-500' : 'border-gray-300'
               } focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
               placeholder="0.00"
-              disabled={isLoading}
+              disabled={isLoading || saving}
             />
           </div>
           {errors.invoiceTarget && (
@@ -166,14 +170,14 @@ const TargetForm: React.FC<TargetFormProps> = ({
           label="Cancel"
           onClick={onCancel}
           variant="secondary"
-          disabled={isLoading}
+          disabled={isLoading || saving}
         />
         <button
           type="submit"
-          disabled={isLoading}
+          disabled={isLoading || saving}
           className="px-6 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >
-          {isLoading ? 'Saving...' : 'Set Targets'}
+          {saving ? 'Saving...' : 'Set Targets'}
         </button>
       </div>
     </form>

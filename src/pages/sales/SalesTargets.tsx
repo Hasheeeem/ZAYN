@@ -19,20 +19,41 @@ interface SalesTarget {
 }
 
 const SalesTargets: React.FC = () => {
-  const { leads, userTargets, calculateUserProgress } = useData();
+  const { leads, userTargets, calculateUserProgress, getUserTargets } = useData();
   const { authState } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState<'monthly' | 'quarterly' | 'yearly'>('monthly');
+  const [currentTargets, setCurrentTargets] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   // Filter leads assigned to current sales user
   const myLeads = leads.filter(lead => lead.assignedTo === authState.user?.id.toString());
   const convertedLeads = myLeads.filter(lead => lead.status === 'converted');
   
-  // Get current user's targets
-  const currentUserTargets = userTargets[authState.user?.id.toString() || ''];
-  const salesAchieved = currentUserTargets?.salesAchieved || 0;
-  const invoiceAchieved = currentUserTargets?.invoiceAchieved || 0;
-  const salesTarget = currentUserTargets?.salesTarget || 0;
-  const invoiceTarget = currentUserTargets?.invoiceTarget || 0;
+  // Load user targets on component mount
+  useEffect(() => {
+    const loadTargets = async () => {
+      if (authState.user?.id) {
+        setLoading(true);
+        try {
+          const targets = await getUserTargets(authState.user.id.toString());
+          setCurrentTargets(targets);
+        } catch (error) {
+          console.error('Error loading targets:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadTargets();
+  }, [authState.user?.id, getUserTargets]);
+
+  // Get current user's targets from context or loaded data
+  const userTargetsData = userTargets[authState.user?.id.toString() || ''] || currentTargets;
+  const salesAchieved = userTargetsData?.salesAchieved || 0;
+  const invoiceAchieved = userTargetsData?.invoiceAchieved || 0;
+  const salesTarget = userTargetsData?.salesTarget || 0;
+  const invoiceTarget = userTargetsData?.invoiceTarget || 0;
 
   // Calculate progress
   const { salesProgress, invoiceProgress } = calculateUserProgress(authState.user?.id.toString() || '');
@@ -151,6 +172,14 @@ const SalesTargets: React.FC = () => {
   ];
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Loading targets...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
