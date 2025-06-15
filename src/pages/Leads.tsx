@@ -29,10 +29,8 @@ const Leads: React.FC = () => {
   const [assignToSalesperson, setAssignToSalesperson] = useState('');
 
   const filteredLeads = leads.filter(lead => {
-    const matchesSearch = searchTerm === '' || 
-      lead.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchableText = `${lead.companyRepresentativeName || ''} ${lead.companyName || ''} ${lead.firstName || ''} ${lead.lastName || ''} ${lead.domain || ''} ${lead.email}`.toLowerCase();
+    const matchesSearch = searchTerm === '' || searchableText.includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === '' || lead.status === statusFilter;
     const matchesSource = sourceFilter === '' || lead.source === sourceFilter;
@@ -103,17 +101,36 @@ const Leads: React.FC = () => {
 
   const columns = [
     { 
-      key: 'domain',
-      label: 'Domain',
+      key: 'company',
+      label: 'Company',
       sortable: true,
       render: (value: string, item: Lead) => (
         <div>
-          <div className="font-medium">{value}</div>
-          <div className="text-sm text-gray-500">{item.firstName} {item.lastName}</div>
+          <div className="font-medium">{item.companyName || item.domain || 'N/A'}</div>
+          <div className="text-sm text-gray-500">{item.companyRepresentativeName || `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'N/A'}</div>
         </div>
       )
     },
-    { key: 'price', label: 'Price', sortable: true, render: (value: number) => `$${value}` },
+    { 
+      key: 'contact',
+      label: 'Contact',
+      render: (value: string, item: Lead) => (
+        <div>
+          <div className="text-sm">{item.email}</div>
+          <div className="text-sm text-gray-500">{item.phone || 'N/A'}</div>
+        </div>
+      )
+    },
+    { 
+      key: 'financial',
+      label: 'Financial',
+      render: (value: string, item: Lead) => (
+        <div>
+          <div className="text-sm">Paid: ${item.pricePaid || item.price || 0}</div>
+          <div className="text-sm text-gray-500">Billed: ${item.invoiceBilled || 0}</div>
+        </div>
+      )
+    },
     { key: 'source', label: 'Source', sortable: true },
     { 
       key: 'status',
@@ -188,7 +205,7 @@ const Leads: React.FC = () => {
             </>
           )}
           <ActionButton
-            label="New Lead"
+            label="Add New Lead"
             icon={<Plus size={18} />}
             onClick={() => setIsAddModalOpen(true)}
             variant="primary"
@@ -263,20 +280,23 @@ const Leads: React.FC = () => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         title="Add New Lead"
+        size="lg"
       >
-        <LeadForm onSave={handleAddLead} onCancel={() => setIsAddModalOpen(false)} />
+        <LeadForm onSave={handleAddLead} onCancel={() => setIsAddModalOpen(false)} isAdmin={true} />
       </Modal>
 
       <Modal
         isOpen={isViewModalOpen}
         onClose={() => setIsViewModalOpen(false)}
         title="Edit Lead"
+        size="lg"
       >
         {selectedLead && (
           <LeadForm
             initialData={selectedLead}
             onSave={handleUpdateLead}
             onCancel={() => setIsViewModalOpen(false)}
+            isAdmin={true}
           />
         )}
       </Modal>

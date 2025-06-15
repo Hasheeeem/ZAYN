@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNotification } from '../context/NotificationContext';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import { Lead } from '../types/data';
 import ActionButton from '../components/ActionButton';
 
@@ -9,29 +10,30 @@ interface Props {
   onCancel: () => void;
   initialData?: Lead;
   isLoading?: boolean;
+  isAdmin?: boolean;
 }
 
-const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = false }) => {
+const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = false, isAdmin = false }) => {
   const { showNotification } = useNotification();
   const { salespeople } = useData();
+  const { authState } = useAuth();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   
   const [form, setForm] = useState<Lead>({
     id: initialData?.id || '',
-    firstName: '',
-    lastName: '',
+    companyRepresentativeName: '',
+    companyName: '',
     email: '',
     phone: '',
-    domain: '',
-    price: 0,
-    clicks: 0,
-    update: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     status: 'new',
     source: 'website',
+    pricePaid: 0,
+    invoiceBilled: 0,
+    update: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     notes: '',
     createdAt: new Date().toISOString(),
-    assignedTo: ''
+    assignedTo: isAdmin ? '' : authState.user?.id.toString() || ''
   });
 
   useEffect(() => {
@@ -43,8 +45,12 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!form.firstName.trim()) {
-      newErrors.firstName = 'First name is required';
+    if (!form.companyRepresentativeName?.trim()) {
+      newErrors.companyRepresentativeName = 'Company representative name is required';
+    }
+
+    if (!form.companyName?.trim()) {
+      newErrors.companyName = 'Company name is required';
     }
 
     if (!form.email.trim()) {
@@ -53,12 +59,20 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
       newErrors.email = 'Invalid email format';
     }
 
-    if (!form.domain.trim()) {
-      newErrors.domain = 'Domain is required';
+    if (!form.phone?.trim()) {
+      newErrors.phone = 'Phone number is required';
     }
 
-    if (form.price < 0) {
-      newErrors.price = 'Price cannot be negative';
+    if (form.pricePaid < 0) {
+      newErrors.pricePaid = 'Price paid cannot be negative';
+    }
+
+    if (form.invoiceBilled < 0) {
+      newErrors.invoiceBilled = 'Invoice billed cannot be negative';
+    }
+
+    if (isAdmin && !form.assignedTo) {
+      newErrors.assignedTo = 'Please assign the lead to a sales person';
     }
 
     setErrors(newErrors);
@@ -87,7 +101,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     const { name, value } = e.target;
     setForm(prev => ({ 
       ...prev, 
-      [name]: name === 'price' ? parseFloat(value) || 0 : value 
+      [name]: name === 'pricePaid' || name === 'invoiceBilled' ? parseFloat(value) || 0 : value 
     }));
     
     if (errors[name]) {
@@ -99,38 +113,43 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     <form onSubmit={handleSubmit} className="space-y-4 p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-            First Name *
+          <label htmlFor="companyRepresentativeName" className="block text-sm font-medium text-gray-700 mb-1">
+            Company Representative Name *
           </label>
           <input
-            id="firstName"
-            name="firstName"
+            id="companyRepresentativeName"
+            name="companyRepresentativeName"
             type="text"
-            value={form.firstName}
+            value={form.companyRepresentativeName || ''}
             onChange={handleChange}
             className={`w-full px-4 py-2 rounded-lg border ${
-              errors.firstName ? 'border-red-500' : 'border-gray-300'
+              errors.companyRepresentativeName ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading || saving}
           />
-          {errors.firstName && (
-            <p className="mt-1 text-sm text-red-500">{errors.firstName}</p>
+          {errors.companyRepresentativeName && (
+            <p className="mt-1 text-sm text-red-500">{errors.companyRepresentativeName}</p>
           )}
         </div>
 
         <div>
-          <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-            Last Name
+          <label htmlFor="companyName" className="block text-sm font-medium text-gray-700 mb-1">
+            Company Name *
           </label>
           <input
-            id="lastName"
-            name="lastName"
+            id="companyName"
+            name="companyName"
             type="text"
-            value={form.lastName}
+            value={form.companyName || ''}
             onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.companyName ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading || saving}
           />
+          {errors.companyName && (
+            <p className="mt-1 text-sm text-red-500">{errors.companyName}</p>
+          )}
         </div>
 
         <div>
@@ -155,56 +174,21 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
         <div>
           <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-            Phone
+            Phone Number *
           </label>
           <input
             id="phone"
             name="phone"
             type="tel"
-            value={form.phone}
-            onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-            disabled={isLoading || saving}
-          />
-        </div>
-
-        <div>
-          <label htmlFor="domain" className="block text-sm font-medium text-gray-700 mb-1">
-            Domain *
-          </label>
-          <input
-            id="domain"
-            name="domain"
-            type="text"
-            value={form.domain}
+            value={form.phone || ''}
             onChange={handleChange}
             className={`w-full px-4 py-2 rounded-lg border ${
-              errors.domain ? 'border-red-500' : 'border-gray-300'
+              errors.phone ? 'border-red-500' : 'border-gray-300'
             } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading || saving}
           />
-          {errors.domain && (
-            <p className="mt-1 text-sm text-red-500">{errors.domain}</p>
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-1">
-            Price
-          </label>
-          <input
-            id="price"
-            name="price"
-            type="number"
-            value={form.price}
-            onChange={handleChange}
-            className={`w-full px-4 py-2 rounded-lg border ${
-              errors.price ? 'border-red-500' : 'border-gray-300'
-            } focus:ring-2 focus:ring-indigo-500`}
-            disabled={isLoading || saving}
-          />
-          {errors.price && (
-            <p className="mt-1 text-sm text-red-500">{errors.price}</p>
+          {errors.phone && (
+            <p className="mt-1 text-sm text-red-500">{errors.phone}</p>
           )}
         </div>
 
@@ -230,7 +214,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
         <div>
           <label htmlFor="source" className="block text-sm font-medium text-gray-700 mb-1">
-            Lead Source
+            Source
           </label>
           <select
             id="source"
@@ -247,25 +231,74 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           </select>
         </div>
 
+        {isAdmin && (
+          <div>
+            <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-700 mb-1">
+              Assigned To *
+            </label>
+            <select
+              id="assignedTo"
+              name="assignedTo"
+              value={form.assignedTo}
+              onChange={handleChange}
+              className={`w-full px-4 py-2 rounded-lg border ${
+                errors.assignedTo ? 'border-red-500' : 'border-gray-300'
+              } focus:ring-2 focus:ring-indigo-500`}
+              disabled={isLoading || saving}
+            >
+              <option value="">Select Sales Person</option>
+              {salespeople.map(person => (
+                <option key={person.id} value={person.id}>
+                  {person.name}
+                </option>
+              ))}
+            </select>
+            {errors.assignedTo && (
+              <p className="mt-1 text-sm text-red-500">{errors.assignedTo}</p>
+            )}
+          </div>
+        )}
+
         <div>
-          <label htmlFor="assignedTo" className="block text-sm font-medium text-gray-700 mb-1">
-            Assigned To
+          <label htmlFor="pricePaid" className="block text-sm font-medium text-gray-700 mb-1">
+            Price Paid (Sales Done)
           </label>
-          <select
-            id="assignedTo"
-            name="assignedTo"
-            value={form.assignedTo}
+          <input
+            id="pricePaid"
+            name="pricePaid"
+            type="number"
+            step="0.01"
+            value={form.pricePaid || 0}
             onChange={handleChange}
-            className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.pricePaid ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
             disabled={isLoading || saving}
-          >
-            <option value="">Unassigned</option>
-            {salespeople.map(person => (
-              <option key={person.id} value={person.id}>
-                {person.name}
-              </option>
-            ))}
-          </select>
+          />
+          {errors.pricePaid && (
+            <p className="mt-1 text-sm text-red-500">{errors.pricePaid}</p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="invoiceBilled" className="block text-sm font-medium text-gray-700 mb-1">
+            Invoice Billed
+          </label>
+          <input
+            id="invoiceBilled"
+            name="invoiceBilled"
+            type="number"
+            step="0.01"
+            value={form.invoiceBilled || 0}
+            onChange={handleChange}
+            className={`w-full px-4 py-2 rounded-lg border ${
+              errors.invoiceBilled ? 'border-red-500' : 'border-gray-300'
+            } focus:ring-2 focus:ring-indigo-500`}
+            disabled={isLoading || saving}
+          />
+          {errors.invoiceBilled && (
+            <p className="mt-1 text-sm text-red-500">{errors.invoiceBilled}</p>
+          )}
         </div>
       </div>
 
@@ -276,7 +309,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         <textarea
           id="notes"
           name="notes"
-          value={form.notes}
+          value={form.notes || ''}
           onChange={handleChange}
           rows={4}
           className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"

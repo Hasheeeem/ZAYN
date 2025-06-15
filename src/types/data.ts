@@ -1,12 +1,16 @@
 export interface Lead {
   id: number | string;
-  firstName: string;
-  lastName: string;
+  companyRepresentativeName?: string;
+  companyName?: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
-  phone: string;
-  domain: string;
-  price: number;
-  clicks: number;
+  phone?: string;
+  domain?: string;
+  price?: number;
+  pricePaid?: number;
+  invoiceBilled?: number;
+  clicks?: number;
   update: string;
   status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
   source: 'website' | 'referral' | 'call' | 'other';

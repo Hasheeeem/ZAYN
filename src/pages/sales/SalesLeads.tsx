@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Phone, Mail, MessageSquare, Calendar, Edit, Eye } from 'lucide-react';
+import { Phone, Mail, MessageSquare, Calendar, Edit, Eye, Plus } from 'lucide-react';
 import DataTable from '../../components/DataTable';
 import ActionButton from '../../components/ActionButton';
 import Modal from '../../components/Modal';
 import SearchFilter from '../../components/SearchFilter';
+import LeadForm from '../../components/LeadForm';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
@@ -11,10 +12,11 @@ import { Lead } from '../../types/data';
 import StatusBadge from '../../components/StatusBadge';
 
 const SalesLeads: React.FC = () => {
-  const { leads, updateLead } = useData();
+  const { leads, updateLead, addLead } = useData();
   const { authState } = useAuth();
   const { showNotification } = useNotification();
 
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -26,16 +28,23 @@ const SalesLeads: React.FC = () => {
   const myLeads = leads.filter(lead => lead.assignedTo === authState.user?.id.toString());
 
   const filteredLeads = myLeads.filter(lead => {
-    const matchesSearch = searchTerm === '' || 
-      lead.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+    const searchableText = `${lead.companyRepresentativeName || ''} ${lead.companyName || ''} ${lead.firstName || ''} ${lead.lastName || ''} ${lead.domain || ''} ${lead.email}`.toLowerCase();
+    const matchesSearch = searchTerm === '' || searchableText.includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === '' || lead.status === statusFilter;
     const matchesSource = sourceFilter === '' || lead.source === sourceFilter;
     
     return matchesSearch && matchesStatus && matchesSource;
   });
+
+  const handleAddLead = async (lead: Lead) => {
+    try {
+      await addLead(lead);
+      setIsAddModalOpen(false);
+    } catch (error) {
+      // Error is handled in the context
+    }
+  };
 
   const handleUpdateStatus = (leadId: number | string, newStatus: string) => {
     const lead = leads.find(l => l.id === leadId);
@@ -65,20 +74,20 @@ const SalesLeads: React.FC = () => {
       label: 'Contact',
       render: (value: string, item: Lead) => (
         <div>
-          <div className="font-medium">{item.firstName} {item.lastName}</div>
+          <div className="font-medium">{item.companyRepresentativeName || `${item.firstName || ''} ${item.lastName || ''}`.trim() || 'N/A'}</div>
+          <div className="text-sm text-gray-500">{item.companyName || item.domain || 'N/A'}</div>
           <div className="text-sm text-gray-500">{item.email}</div>
-          <div className="text-sm text-gray-500">{item.phone}</div>
+          <div className="text-sm text-gray-500">{item.phone || 'N/A'}</div>
         </div>
       )
     },
     { 
-      key: 'domain',
-      label: 'Domain',
-      sortable: true,
+      key: 'financial',
+      label: 'Financial',
       render: (value: string, item: Lead) => (
         <div>
-          <div className="font-medium">{value}</div>
-          <div className="text-sm text-gray-500">${item.price}</div>
+          <div className="text-sm">Paid: ${item.pricePaid || item.price || 0}</div>
+          <div className="text-sm text-gray-500">Billed: ${item.invoiceBilled || 0}</div>
         </div>
       )
     },
@@ -141,9 +150,17 @@ const SalesLeads: React.FC = () => {
           <h2 className="text-2xl font-semibold text-gray-800">My Leads</h2>
           <p className="text-gray-600">Manage and track your assigned leads</p>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-indigo-600">{myLeads.length}</div>
-          <div className="text-sm text-gray-500">Total Leads</div>
+        <div className="flex items-center gap-4">
+          <ActionButton
+            label="Add New Lead"
+            icon={<Plus size={18} />}
+            onClick={() => setIsAddModalOpen(true)}
+            variant="primary"
+          />
+          <div className="text-right">
+            <div className="text-2xl font-bold text-indigo-600">{myLeads.length}</div>
+            <div className="text-sm text-gray-500">Total Leads</div>
+          </div>
         </div>
       </div>
 
@@ -188,6 +205,16 @@ const SalesLeads: React.FC = () => {
         />
       </div>
 
+      {/* Add Lead Modal */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Add New Lead"
+        size="lg"
+      >
+        <LeadForm onSave={handleAddLead} onCancel={() => setIsAddModalOpen(false)} isAdmin={false} />
+      </Modal>
+
       {/* View Lead Modal */}
       <Modal
         isOpen={isViewModalOpen}
@@ -202,8 +229,12 @@ const SalesLeads: React.FC = () => {
                 <h3 className="text-lg font-semibold mb-4">Contact Information</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Name</label>
-                    <p className="font-medium">{selectedLead.firstName} {selectedLead.lastName}</p>
+                    <label className="text-sm font-medium text-gray-500">Representative Name</label>
+                    <p className="font-medium">{selectedLead.companyRepresentativeName || `${selectedLead.firstName || ''} ${selectedLead.lastName || ''}`.trim() || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Company Name</label>
+                    <p className="font-medium">{selectedLead.companyName || selectedLead.domain || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Email</label>
@@ -211,7 +242,7 @@ const SalesLeads: React.FC = () => {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Phone</label>
-                    <p className="font-medium">{selectedLead.phone}</p>
+                    <p className="font-medium">{selectedLead.phone || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -220,12 +251,12 @@ const SalesLeads: React.FC = () => {
                 <h3 className="text-lg font-semibold mb-4">Lead Information</h3>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Domain</label>
-                    <p className="font-medium">{selectedLead.domain}</p>
+                    <label className="text-sm font-medium text-gray-500">Price Paid</label>
+                    <p className="font-medium">${selectedLead.pricePaid || selectedLead.price || 0}</p>
                   </div>
                   <div>
-                    <label className="text-sm font-medium text-gray-500">Price</label>
-                    <p className="font-medium">${selectedLead.price}</p>
+                    <label className="text-sm font-medium text-gray-500">Invoice Billed</label>
+                    <p className="font-medium">${selectedLead.invoiceBilled || 0}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Source</label>
@@ -287,58 +318,18 @@ const SalesLeads: React.FC = () => {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         title="Edit Lead"
+        size="lg"
       >
         {selectedLead && (
-          <div className="p-6">
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select
-                  value={selectedLead.status}
-                  onChange={(e) => {
-                    setSelectedLead({ ...selectedLead, status: e.target.value as any });
-                  }}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="new">New</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="qualified">Qualified</option>
-                  <option value="converted">Converted</option>
-                  <option value="lost">Lost</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                <textarea
-                  value={selectedLead.notes || ''}
-                  onChange={(e) => {
-                    setSelectedLead({ ...selectedLead, notes: e.target.value });
-                  }}
-                  rows={4}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Add notes about this lead..."
-                />
-              </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 mt-6">
-              <ActionButton
-                label="Cancel"
-                onClick={() => setIsEditModalOpen(false)}
-                variant="secondary"
-              />
-              <ActionButton
-                label="Save Changes"
-                onClick={() => {
-                  updateLead(selectedLead);
-                  showNotification('Lead updated successfully', 'success');
-                  setIsEditModalOpen(false);
-                }}
-                variant="primary"
-              />
-            </div>
-          </div>
+          <LeadForm
+            initialData={selectedLead}
+            onSave={async (updatedLead) => {
+              await updateLead(updatedLead);
+              setIsEditModalOpen(false);
+            }}
+            onCancel={() => setIsEditModalOpen(false)}
+            isAdmin={false}
+          />
         )}
       </Modal>
     </div>

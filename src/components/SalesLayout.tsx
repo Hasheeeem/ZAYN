@@ -6,7 +6,6 @@ import SalesDashboard from '../pages/sales/SalesDashboard';
 import SalesLeads from '../pages/sales/SalesLeads';
 import SalesCalendar from '../pages/sales/SalesCalendar';
 import SalesTargets from '../pages/sales/SalesTargets';
-import SalesReports from '../pages/sales/SalesReports';
 import SalesProfile from '../pages/sales/SalesProfile';
 
 const SalesLayout: React.FC = () => {
@@ -29,8 +28,6 @@ const SalesLayout: React.FC = () => {
         return 'Calendar & Tasks';
       case 'targets':
         return 'Sales Targets';
-      case 'reports':
-        return 'My Reports';
       case 'profile':
         return 'My Profile';
       default:
@@ -64,7 +61,6 @@ const SalesLayout: React.FC = () => {
               <Route path="/sales/leads" element={<SalesLeads />} />
               <Route path="/sales/calendar" element={<SalesCalendar />} />
               <Route path="/sales/targets" element={<SalesTargets />} />
-              <Route path="/sales/reports" element={<SalesReports />} />
               <Route path="/sales/profile" element={<SalesProfile />} />
             </Routes>
           </main>
