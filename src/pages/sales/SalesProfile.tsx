@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Mail, Phone, MapPin, Calendar, Award, Target, TrendingUp, Edit2, Save, X, Briefcase, Star, Clock } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, TrendingUp, Edit2, Save, X, Clock, Star } from 'lucide-react';
 import ActionButton from '../../components/ActionButton';
 import StatCard from '../../components/StatCard';
 import { useAuth } from '../../context/AuthContext';
@@ -14,20 +14,10 @@ interface SalesProfile {
   phone: string;
   location: string;
   joinDate: string;
-  bio: string;
-  achievements: string[];
-  certifications: string[];
-  skills: string[];
-  targets: {
-    monthly: number;
-    quarterly: number;
-    yearly: number;
-  };
   performance: {
     leadsConverted: number;
     conversionRate: number;
     revenue: number;
-    ranking: number;
     avgDealSize: number;
     clientSatisfaction: number;
   };
@@ -53,7 +43,7 @@ const SalesProfile: React.FC = () => {
   const avgDealSize = convertedLeads.length > 0 ? totalRevenue / convertedLeads.length : 0;
   const conversionRate = myLeads.length > 0 ? (convertedLeads.length / myLeads.length) * 100 : 0;
 
-  // Comprehensive sales profile data
+  // Simplified sales profile data
   const [profile, setProfile] = useState<SalesProfile>({
     id: 1,
     name: authState.user?.name || 'Alex Sales',
@@ -61,39 +51,10 @@ const SalesProfile: React.FC = () => {
     phone: '+1 (555) 123-4567',
     location: 'New York, NY',
     joinDate: '2023-01-15',
-    bio: 'Experienced domain sales professional with 5+ years in B2B sales. Specialized in premium domain acquisitions, enterprise solutions, and building long-term client relationships. Consistently exceeds targets and maintains high client satisfaction ratings.',
-    achievements: [
-      'Top Performer Q4 2024',
-      'Exceeded Annual Target by 150%',
-      'Customer Satisfaction Award 2024',
-      'New Client Acquisition Leader',
-      'Million Dollar Club Member',
-      'Sales Excellence Award'
-    ],
-    certifications: [
-      'Certified Sales Professional (CSP)',
-      'Domain Industry Certification',
-      'Advanced Negotiation Techniques',
-      'Customer Relationship Management'
-    ],
-    skills: [
-      'Domain Valuation',
-      'Client Relationship Management',
-      'Negotiation & Closing',
-      'Market Analysis',
-      'Lead Generation',
-      'Presentation Skills'
-    ],
-    targets: {
-      monthly: 15,
-      quarterly: 45,
-      yearly: 180
-    },
     performance: {
       leadsConverted: convertedLeads.length,
       conversionRate: Math.round(conversionRate),
       revenue: totalRevenue,
-      ranking: 2,
       avgDealSize: Math.round(avgDealSize),
       clientSatisfaction: 4.8
     },
@@ -150,7 +111,7 @@ const SalesProfile: React.FC = () => {
     {
       title: 'Leads Converted',
       value: profile.performance.leadsConverted,
-      icon: <Target size={24} />,
+      icon: <TrendingUp size={24} />,
       color: 'green'
     },
     {
@@ -162,13 +123,13 @@ const SalesProfile: React.FC = () => {
     {
       title: 'Revenue Generated',
       value: `$${profile.performance.revenue.toLocaleString()}`,
-      icon: <Award size={24} />,
+      icon: <TrendingUp size={24} />,
       color: 'purple'
     },
     {
       title: 'Avg Deal Size',
       value: `$${profile.performance.avgDealSize.toLocaleString()}`,
-      icon: <Briefcase size={24} />,
+      icon: <TrendingUp size={24} />,
       color: 'yellow'
     }
   ];
@@ -176,7 +137,7 @@ const SalesProfile: React.FC = () => {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'conversion':
-        return <Award className="text-green-600\" size={16} />;
+        return <TrendingUp className="text-green-600" size={16} />;
       case 'call':
         return <Phone className="text-blue-600" size={16} />;
       case 'meeting':
@@ -293,16 +254,6 @@ const SalesProfile: React.FC = () => {
                 </span>
               </div>
             </div>
-
-            <div className="mt-6 pt-6 border-t">
-              <h4 className="font-semibold text-gray-800 mb-3">Team Ranking</h4>
-              <div className="flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-indigo-600">#{profile.performance.ranking}</div>
-                  <div className="text-sm text-gray-500">out of 12 reps</div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -319,107 +270,6 @@ const SalesProfile: React.FC = () => {
                 color={stat.color}
               />
             ))}
-          </div>
-
-          {/* Bio Section */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h4 className="font-semibold text-gray-800 mb-3">About Me</h4>
-            {isEditing ? (
-              <textarea
-                value={editForm.bio}
-                onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })}
-                rows={4}
-                className="w-full border rounded-lg px-3 py-2"
-                placeholder="Tell us about yourself..."
-              />
-            ) : (
-              <p className="text-gray-700">{profile.bio}</p>
-            )}
-          </div>
-
-          {/* Skills & Certifications */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h4 className="font-semibold text-gray-800 mb-4">Core Skills</h4>
-              <div className="flex flex-wrap gap-2">
-                {profile.skills.map((skill, index) => (
-                  <span key={index} className="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-medium">
-                    {skill}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h4 className="font-semibold text-gray-800 mb-4">Certifications</h4>
-              <div className="space-y-2">
-                {profile.certifications.map((cert, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <Award className="text-indigo-600" size={16} />
-                    <span className="text-sm text-gray-700">{cert}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Achievements */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h4 className="font-semibold text-gray-800 mb-4">Achievements & Awards</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {profile.achievements.map((achievement, index) => (
-                <div key={index} className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg">
-                  <Award className="text-indigo-600" size={20} />
-                  <span className="font-medium text-gray-800">{achievement}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Sales Targets */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h4 className="font-semibold text-gray-800 mb-4">Sales Targets</h4>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{profile.targets.monthly}</div>
-                <div className="text-sm text-gray-600">Monthly Target</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Current: {profile.performance.leadsConverted}
-                </div>
-                <div className="w-full bg-blue-200 rounded-full h-2 mt-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full" 
-                    style={{ width: `${Math.min((profile.performance.leadsConverted / profile.targets.monthly) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{profile.targets.quarterly}</div>
-                <div className="text-sm text-gray-600">Quarterly Target</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Progress: {Math.round((profile.performance.leadsConverted / profile.targets.quarterly) * 100)}%
-                </div>
-                <div className="w-full bg-green-200 rounded-full h-2 mt-2">
-                  <div 
-                    className="bg-green-600 h-2 rounded-full" 
-                    style={{ width: `${Math.min((profile.performance.leadsConverted / profile.targets.quarterly) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">{profile.targets.yearly}</div>
-                <div className="text-sm text-gray-600">Yearly Target</div>
-                <div className="text-xs text-gray-500 mt-1">
-                  Progress: {Math.round((profile.performance.leadsConverted / profile.targets.yearly) * 100)}%
-                </div>
-                <div className="w-full bg-purple-200 rounded-full h-2 mt-2">
-                  <div 
-                    className="bg-purple-600 h-2 rounded-full" 
-                    style={{ width: `${Math.min((profile.performance.leadsConverted / profile.targets.yearly) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* Recent Activity */}
@@ -442,6 +292,34 @@ const SalesProfile: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Performance Insights */}
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h4 className="font-semibold text-gray-800 mb-4">Performance Insights</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <TrendingUp className="text-blue-600" size={24} />
+                  <h4 className="font-medium text-blue-800">Conversion Performance</h4>
+                </div>
+                <p className="text-blue-700">
+                  {profile.performance.conversionRate >= 20 ? 'Excellent conversion rate!' : 
+                   profile.performance.conversionRate >= 15 ? 'Good conversion performance' :
+                   profile.performance.conversionRate >= 10 ? 'Average performance' : 'Room for improvement'}
+                </p>
+              </div>
+              
+              <div className="bg-green-50 p-4 rounded-lg">
+                <div className="flex items-center gap-3 mb-2">
+                  <TrendingUp className="text-green-600" size={24} />
+                  <h4 className="font-medium text-green-800">Revenue Impact</h4>
+                </div>
+                <p className="text-green-700">
+                  Generated ${profile.performance.revenue.toLocaleString()} in total revenue with {profile.performance.leadsConverted} conversions
+                </p>
+              </div>
             </div>
           </div>
         </div>
