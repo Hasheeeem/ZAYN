@@ -14,8 +14,6 @@ interface SalesProfile {
   phone: string;
   location: string;
   joinDate: string;
-  territory: string;
-  specialization: string;
   bio: string;
   achievements: string[];
   certifications: string[];
@@ -63,8 +61,6 @@ const SalesProfile: React.FC = () => {
     phone: '+1 (555) 123-4567',
     location: 'New York, NY',
     joinDate: '2023-01-15',
-    territory: 'Northeast Region',
-    specialization: 'Premium Domain Sales & Enterprise Solutions',
     bio: 'Experienced domain sales professional with 5+ years in B2B sales. Specialized in premium domain acquisitions, enterprise solutions, and building long-term client relationships. Consistently exceeds targets and maintains high client satisfaction ratings.',
     achievements: [
       'Top Performer Q4 2024',
@@ -295,38 +291,6 @@ const SalesProfile: React.FC = () => {
                 <span className="text-gray-700">
                   Joined {format(new Date(profile.joinDate), 'MMMM yyyy')}
                 </span>
-              </div>
-            </div>
-
-            <div className="mt-6 pt-6 border-t">
-              <h4 className="font-semibold text-gray-800 mb-3">Territory & Specialization</h4>
-              <div className="space-y-2">
-                <div>
-                  <label className="text-sm text-gray-500">Territory</label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editForm.territory}
-                      onChange={(e) => setEditForm({ ...editForm, territory: e.target.value })}
-                      className="w-full border rounded-lg px-3 py-2 mt-1"
-                    />
-                  ) : (
-                    <p className="font-medium">{profile.territory}</p>
-                  )}
-                </div>
-                <div>
-                  <label className="text-sm text-gray-500">Specialization</label>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={editForm.specialization}
-                      onChange={(e) => setEditForm({ ...editForm, specialization: e.target.value })}
-                      className="w-full border rounded-lg px-3 py-2 mt-1"
-                    />
-                  ) : (
-                    <p className="font-medium">{profile.specialization}</p>
-                  )}
-                </div>
               </div>
             </div>
 
