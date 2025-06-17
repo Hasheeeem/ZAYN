@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import SalesDashboard from '../pages/sales/SalesDashboard';
 import SalesLeads from '../pages/sales/SalesLeads';
 import SalesCalendar from '../pages/sales/SalesCalendar';
+import SalesTasks from '../pages/sales/SalesTasks';
 import SalesTargets from '../pages/sales/SalesTargets';
 import SalesProfile from '../pages/sales/SalesProfile';
 
@@ -25,7 +26,9 @@ const SalesLayout: React.FC = () => {
       case 'leads':
         return 'My Leads';
       case 'calendar':
-        return 'Calendar & Tasks';
+        return 'Calendar';
+      case 'tasks':
+        return 'My Tasks';
       case 'targets':
         return 'Sales Targets';
       case 'profile':
@@ -60,6 +63,7 @@ const SalesLayout: React.FC = () => {
               <Route path="/sales/" element={<SalesDashboard />} />
               <Route path="/sales/leads" element={<SalesLeads />} />
               <Route path="/sales/calendar" element={<SalesCalendar />} />
+              <Route path="/sales/tasks" element={<SalesTasks />} />
               <Route path="/sales/targets" element={<SalesTargets />} />
               <Route path="/sales/profile" element={<SalesProfile />} />
             </Routes>

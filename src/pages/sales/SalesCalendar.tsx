@@ -23,24 +23,21 @@ interface CalendarEvent {
   priority: 'low' | 'medium' | 'high';
 }
 
-interface Task {
-  id: number;
-  title: string;
-  description: string;
-  dueDate: string;
-  priority: 'low' | 'medium' | 'high';
-  status: 'pending' | 'completed';
-  category: 'follow-up' | 'admin' | 'prospecting' | 'other';
-}
-
 const SalesCalendar: React.FC = () => {
   const { showNotification } = useNotification();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
-  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [view, setView] = useState<'calendar' | 'tasks'>('calendar');
+  const [modalMode, setModalMode] = useState<'add' | 'view'>('add');
+
+  // Event form state
+  const [eventForm, setEventForm] = useState({
+    title: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+    time: '09:00',
+    description: ''
+  });
 
   // Comprehensive events data
   const [events, setEvents] = useState<CalendarEvent[]>([
@@ -170,110 +167,12 @@ const SalesCalendar: React.FC = () => {
     }
   ]);
 
-  // Comprehensive tasks data
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 1,
-      title: 'Update CRM with new lead information',
-      description: 'Add contact details and notes for 5 new leads from yesterday\'s inquiries',
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'admin'
-    },
-    {
-      id: 2,
-      title: 'Send proposal to ABC Corp',
-      description: 'Prepare and send customized domain proposal with pricing tiers',
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'follow-up'
-    },
-    {
-      id: 3,
-      title: 'Research blockchain domain trends',
-      description: 'Analyze market trends for blockchain-related domains for upcoming client',
-      dueDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'prospecting'
-    },
-    {
-      id: 4,
-      title: 'Follow up with TechStartup decision',
-      description: 'Check on the status of domain purchase decision after demo',
-      dueDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'follow-up'
-    },
-    {
-      id: 5,
-      title: 'Prepare Q1 sales report',
-      description: 'Compile quarterly performance metrics and client feedback',
-      dueDate: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'admin'
-    },
-    {
-      id: 6,
-      title: 'Identify 10 new prospects in fintech',
-      description: 'Research and compile list of potential fintech clients for outreach',
-      dueDate: format(addDays(new Date(), 3), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'prospecting'
-    },
-    {
-      id: 7,
-      title: 'Schedule follow-up calls',
-      description: 'Book follow-up calls with 3 qualified leads from last week',
-      dueDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'follow-up'
-    },
-    {
-      id: 8,
-      title: 'Update domain inventory spreadsheet',
-      description: 'Add new premium domains and update pricing information',
-      dueDate: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
-      priority: 'low',
-      status: 'pending',
-      category: 'admin'
-    },
-    {
-      id: 9,
-      title: 'Competitor analysis report',
-      description: 'Analyze competitor pricing and service offerings',
-      dueDate: format(addDays(new Date(), 4), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'other'
-    },
-    {
-      id: 10,
-      title: 'Client satisfaction survey',
-      description: 'Send satisfaction surveys to recent customers',
-      dueDate: format(addDays(new Date(), 3), 'yyyy-MM-dd'),
-      priority: 'low',
-      status: 'completed',
-      category: 'admin'
-    }
-  ]);
-
   const weekStart = startOfWeek(currentDate);
   const weekEnd = endOfWeek(currentDate);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const getEventsForDate = (date: Date) => {
     return events.filter(event => isSameDay(new Date(event.date), date));
-  };
-
-  const getTasksForDate = (date: Date) => {
-    return tasks.filter(task => isSameDay(new Date(task.dueDate), date));
   };
 
   const getEventTypeIcon = (type: string) => {
@@ -306,26 +205,6 @@ const SalesCalendar: React.FC = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-600';
-      case 'medium':
-        return 'text-yellow-600';
-      case 'low':
-        return 'text-green-600';
-      default:
-        return 'text-gray-600';
-    }
-  };
-
-  const handleCompleteTask = (taskId: number) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, status: 'completed' } : task
-    ));
-    showNotification('Task marked as completed', 'success');
-  };
-
   const handleCompleteEvent = (eventId: number) => {
     setEvents(events.map(event => 
       event.id === eventId ? { ...event, status: 'completed' } : event
@@ -333,320 +212,208 @@ const SalesCalendar: React.FC = () => {
     showNotification('Event marked as completed', 'success');
   };
 
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!eventForm.title.trim()) {
+      showNotification('Please enter a title for the event', 'error');
+      return;
+    }
+
+    const newEvent: CalendarEvent = {
+      id: Date.now(),
+      title: eventForm.title,
+      type: 'meeting',
+      date: eventForm.date,
+      time: eventForm.time,
+      duration: 60,
+      description: eventForm.description,
+      status: 'scheduled',
+      priority: 'medium'
+    };
+
+    setEvents(prev => [...prev, newEvent]);
+    setEventForm({
+      title: '',
+      date: format(new Date(), 'yyyy-MM-dd'),
+      time: '09:00',
+      description: ''
+    });
+    setIsEventModalOpen(false);
+    showNotification('Event created successfully', 'success');
+  };
+
+  const openAddModal = () => {
+    setModalMode('add');
+    setSelectedEvent(null);
+    setEventForm({
+      title: '',
+      date: format(selectedDate, 'yyyy-MM-dd'),
+      time: '09:00',
+      description: ''
+    });
+    setIsEventModalOpen(true);
+  };
+
+  const openViewModal = (event: CalendarEvent) => {
+    setModalMode('view');
+    setSelectedEvent(event);
+    setIsEventModalOpen(true);
+  };
+
   const todayEvents = getEventsForDate(new Date());
-  const todayTasks = getTasksForDate(new Date());
   const upcomingEvents = events.filter(event => new Date(event.date) > new Date()).slice(0, 5);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-semibold text-gray-800">Calendar & Tasks</h2>
-          <p className="text-gray-600">Manage your schedule and daily tasks</p>
+          <h2 className="text-2xl font-semibold text-gray-800">Calendar</h2>
+          <p className="text-gray-600">Manage your schedule and appointments</p>
         </div>
         <div className="flex gap-2">
-          <div className="flex bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setView('calendar')}
-              className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                view === 'calendar' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600'
-              }`}
-            >
-              Calendar
-            </button>
-            <button
-              onClick={() => setView('tasks')}
-              className={`px-4 py-2 rounded-md font-medium transition-colors ${
-                view === 'tasks' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-600'
-              }`}
-            >
-              Tasks
-            </button>
-          </div>
           <ActionButton
             label="New Event"
             icon={<Plus size={18} />}
-            onClick={() => setIsEventModalOpen(true)}
+            onClick={openAddModal}
             variant="primary"
           />
         </div>
       </div>
 
-      {view === 'calendar' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Calendar View */}
-          <div className="lg:col-span-3">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-700">
-                  Week of {format(weekStart, 'MMMM dd, yyyy')}
-                </h3>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setCurrentDate(addDays(currentDate, -7))}
-                    className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentDate(new Date())}
-                    className="px-3 py-1 text-indigo-600 hover:bg-indigo-50 rounded"
-                  >
-                    Today
-                  </button>
-                  <button
-                    onClick={() => setCurrentDate(addDays(currentDate, 7))}
-                    className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
-                  >
-                    Next
-                  </button>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Calendar View */}
+        <div className="lg:col-span-3">
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-semibold text-gray-700">
+                Week of {format(weekStart, 'MMMM dd, yyyy')}
+              </h3>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentDate(addDays(currentDate, -7))}
+                  className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentDate(new Date())}
+                  className="px-3 py-1 text-indigo-600 hover:bg-indigo-50 rounded"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => setCurrentDate(addDays(currentDate, 7))}
+                  className="px-3 py-1 text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 mb-4">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
+                  {day}
                 </div>
-              </div>
-
-              <div className="grid grid-cols-7 gap-1 mb-4">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                  <div key={day} className="p-2 text-center text-sm font-medium text-gray-500">
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-1">
-                {weekDays.map(day => {
-                  const dayEvents = getEventsForDate(day);
-                  const dayTasks = getTasksForDate(day);
-                  
-                  return (
-                    <div
-                      key={day.toISOString()}
-                      className={`min-h-[120px] p-2 border rounded-lg cursor-pointer transition-colors ${
-                        isToday(day) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200 hover:bg-gray-50'
-                      }`}
-                      onClick={() => setSelectedDate(day)}
-                    >
-                      <div className={`text-sm font-medium mb-2 ${
-                        isToday(day) ? 'text-indigo-600' : 'text-gray-700'
-                      }`}>
-                        {format(day, 'd')}
-                      </div>
-                      
-                      <div className="space-y-1">
-                        {dayEvents.slice(0, 2).map(event => (
-                          <div
-                            key={event.id}
-                            className={`text-xs p-1 rounded border ${getEventTypeColor(event.type)}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedEvent(event);
-                              setIsEventModalOpen(true);
-                            }}
-                          >
-                            <div className="flex items-center gap-1">
-                              {getEventTypeIcon(event.type)}
-                              <span className="truncate">{event.title}</span>
-                            </div>
-                            <div>{event.time}</div>
-                          </div>
-                        ))}
-                        
-                        {dayTasks.slice(0, 1).map(task => (
-                          <div
-                            key={task.id}
-                            className="text-xs p-1 rounded bg-orange-100 text-orange-800 border border-orange-200"
-                          >
-                            <div className="flex items-center gap-1">
-                              <CheckCircle size={12} />
-                              <span className="truncate">{task.title}</span>
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {(dayEvents.length > 2 || dayTasks.length > 1) && (
-                          <div className="text-xs text-gray-500">
-                            +{(dayEvents.length - 2) + (dayTasks.length - 1)} more
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Today's Schedule */}
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Today's Schedule</h3>
-              <div className="space-y-3">
-                {todayEvents.length > 0 ? (
-                  todayEvents.map(event => (
-                    <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type)}`}>
-                        {getEventTypeIcon(event.type)}
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-gray-800">{event.title}</p>
-                        <p className="text-sm text-gray-600">{event.time} ({event.duration}min)</p>
-                        {event.contact && (
-                          <p className="text-xs text-gray-500">{event.contact.name}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-center py-4">No events scheduled for today</p>
-                )}
-              </div>
+              ))}
             </div>
 
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Today's Tasks</h3>
-              <div className="space-y-3">
-                {todayTasks.length > 0 ? (
-                  todayTasks.map(task => (
-                    <div key={task.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
-                      <button
-                        onClick={() => handleCompleteTask(task.id)}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          task.status === 'completed' 
-                            ? 'bg-green-500 border-green-500 text-white' 
-                            : 'border-gray-300 hover:border-green-500'
-                        }`}
-                      >
-                        {task.status === 'completed' && <CheckCircle size={12} />}
-                      </button>
-                      <div className="flex-1">
-                        <p className={`font-medium ${
-                          task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-800'
-                        }`}>
-                          {task.title}
-                        </p>
-                        <p className="text-sm text-gray-600">{task.description}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-xs font-medium ${getPriorityColor(task.priority)}`}>
-                            {task.priority.toUpperCase()}
-                          </span>
-                          <span className="text-xs text-gray-500 capitalize">{task.category}</span>
+            <div className="grid grid-cols-7 gap-1">
+              {weekDays.map(day => {
+                const dayEvents = getEventsForDate(day);
+                
+                return (
+                  <div
+                    key={day.toISOString()}
+                    className={`min-h-[120px] p-2 border rounded-lg cursor-pointer transition-colors ${
+                      isToday(day) ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                    onClick={() => setSelectedDate(day)}
+                  >
+                    <div className={`text-sm font-medium mb-2 ${
+                      isToday(day) ? 'text-indigo-600' : 'text-gray-700'
+                    }`}>
+                      {format(day, 'd')}
+                    </div>
+                    
+                    <div className="space-y-1">
+                      {dayEvents.slice(0, 3).map(event => (
+                        <div
+                          key={event.id}
+                          className={`text-xs p-1 rounded border ${getEventTypeColor(event.type)}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openViewModal(event);
+                          }}
+                        >
+                          <div className="flex items-center gap-1">
+                            {getEventTypeIcon(event.type)}
+                            <span className="truncate">{event.title}</span>
+                          </div>
+                          <div>{event.time}</div>
                         </div>
-                      </div>
+                      ))}
+                      
+                      {dayEvents.length > 3 && (
+                        <div className="text-xs text-gray-500">
+                          +{dayEvents.length - 3} more
+                        </div>
+                      )}
                     </div>
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-center py-4">No tasks due today</p>
-                )}
-              </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
-      ) : (
-        /* Tasks View */
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-lg font-semibold text-gray-700">All Tasks</h3>
-                <ActionButton
-                  label="New Task"
-                  icon={<Plus size={18} />}
-                  onClick={() => setIsTaskModalOpen(true)}
-                  variant="primary"
-                  size="sm"
-                />
-              </div>
 
-              <div className="space-y-4">
-                {tasks.map(task => (
-                  <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                    <div className="flex items-start gap-3">
-                      <button
-                        onClick={() => handleCompleteTask(task.id)}
-                        className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-1 ${
-                          task.status === 'completed' 
-                            ? 'bg-green-500 border-green-500 text-white' 
-                            : 'border-gray-300 hover:border-green-500'
-                        }`}
-                      >
-                        {task.status === 'completed' && <CheckCircle size={12} />}
-                      </button>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <h4 className={`font-medium ${
-                            task.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-800'
-                          }`}>
-                            {task.title}
-                          </h4>
-                          <span className={`text-xs font-medium px-2 py-1 rounded ${
-                            task.priority === 'high' ? 'bg-red-100 text-red-800' :
-                            task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-green-100 text-green-800'
-                          }`}>
-                            {task.priority}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 mt-1">{task.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
-                          <span>Due: {format(new Date(task.dueDate), 'MMM dd, yyyy')}</span>
-                          <span className="capitalize">{task.category}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Task Summary</h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Total Tasks</span>
-                  <span className="font-semibold">{tasks.length}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Completed</span>
-                  <span className="font-semibold text-green-600">
-                    {tasks.filter(t => t.status === 'completed').length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Pending</span>
-                  <span className="font-semibold text-orange-600">
-                    {tasks.filter(t => t.status === 'pending').length}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">High Priority</span>
-                  <span className="font-semibold text-red-600">
-                    {tasks.filter(t => t.priority === 'high' && t.status === 'pending').length}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">Upcoming Events</h3>
-              <div className="space-y-3">
-                {upcomingEvents.map(event => (
+        {/* Today's Schedule */}
+        <div className="space-y-6">
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Today's Schedule</h3>
+            <div className="space-y-3">
+              {todayEvents.length > 0 ? (
+                todayEvents.map(event => (
                   <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type)}`}>
                       {getEventTypeIcon(event.type)}
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-800">{event.title}</p>
-                      <p className="text-sm text-gray-600">
-                        {format(new Date(event.date), 'MMM dd')} at {event.time}
-                      </p>
+                      <p className="text-sm text-gray-600">{event.time} ({event.duration}min)</p>
+                      {event.contact && (
+                        <p className="text-xs text-gray-500">{event.contact.name}</p>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No events scheduled for today</p>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Upcoming Events</h3>
+            <div className="space-y-3">
+              {upcomingEvents.map(event => (
+                <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type)}`}>
+                    {getEventTypeIcon(event.type)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800">{event.title}</p>
+                    <p className="text-sm text-gray-600">
+                      {format(new Date(event.date), 'MMM dd')} at {event.time}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Event Modal */}
       <Modal
@@ -655,10 +422,10 @@ const SalesCalendar: React.FC = () => {
           setIsEventModalOpen(false);
           setSelectedEvent(null);
         }}
-        title={selectedEvent ? 'Event Details' : 'New Event'}
+        title={modalMode === 'add' ? 'New Event' : 'Event Details'}
       >
         <div className="p-6">
-          {selectedEvent ? (
+          {modalMode === 'view' && selectedEvent ? (
             <div className="space-y-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">{selectedEvent.title}</h3>
@@ -717,53 +484,81 @@ const SalesCalendar: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <p className="text-gray-600">Event creation form would go here...</p>
-              <div className="flex justify-end gap-3">
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              <div>
+                <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
+                  To Do <span className="text-red-500">*</span>
+                </label>
+                <input
+                  id="title"
+                  type="text"
+                  value={eventForm.title}
+                  onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Enter event title"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="date"
+                    type="date"
+                    value={eventForm.date}
+                    onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="time" className="block text-sm font-medium text-gray-700 mb-1">
+                    Time <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="time"
+                    type="time"
+                    value={eventForm.time}
+                    onChange={(e) => setEventForm({ ...eventForm, time: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+                  Description
+                </label>
+                <textarea
+                  id="description"
+                  value={eventForm.description}
+                  onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  rows={3}
+                  placeholder="Enter event description"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
                 <ActionButton
                   label="Cancel"
                   onClick={() => setIsEventModalOpen(false)}
                   variant="secondary"
                 />
-                <ActionButton
-                  label="Create Event"
-                  onClick={() => {
-                    showNotification('Event created successfully', 'success');
-                    setIsEventModalOpen(false);
-                  }}
-                  variant="primary"
-                />
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg"
+                >
+                  Create Event
+                </button>
               </div>
-            </div>
+            </form>
           )}
-        </div>
-      </Modal>
-
-      {/* Task Modal */}
-      <Modal
-        isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
-        title="New Task"
-      >
-        <div className="p-6">
-          <div className="space-y-4">
-            <p className="text-gray-600">Task creation form would go here...</p>
-            <div className="flex justify-end gap-3">
-              <ActionButton
-                label="Cancel"
-                onClick={() => setIsTaskModalOpen(false)}
-                variant="secondary"
-              />
-              <ActionButton
-                label="Create Task"
-                onClick={() => {
-                  showNotification('Task created successfully', 'success');
-                  setIsTaskModalOpen(false);
-                }}
-                variant="primary"
-              />
-            </div>
-          </div>
         </div>
       </Modal>
     </div>
