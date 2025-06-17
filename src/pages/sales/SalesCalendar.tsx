@@ -36,7 +36,8 @@ const SalesCalendar: React.FC = () => {
     title: '',
     date: format(new Date(), 'yyyy-MM-dd'),
     time: '09:00',
-    description: ''
+    description: '',
+    priority: 'medium' as 'low' | 'medium' | 'high'
   });
 
   // Comprehensive events data
@@ -205,6 +206,32 @@ const SalesCalendar: React.FC = () => {
     }
   };
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'medium':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'low':
+        return 'bg-green-100 text-green-800 border-green-200';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200';
+    }
+  };
+
+  const getPriorityIcon = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return <AlertCircle size={12} />;
+      case 'medium':
+        return <Clock size={12} />;
+      case 'low':
+        return <CheckCircle size={12} />;
+      default:
+        return <Clock size={12} />;
+    }
+  };
+
   const handleCompleteEvent = (eventId: number) => {
     setEvents(events.map(event => 
       event.id === eventId ? { ...event, status: 'completed' } : event
@@ -229,7 +256,7 @@ const SalesCalendar: React.FC = () => {
       duration: 60,
       description: eventForm.description,
       status: 'scheduled',
-      priority: 'medium'
+      priority: eventForm.priority
     };
 
     setEvents(prev => [...prev, newEvent]);
@@ -237,7 +264,8 @@ const SalesCalendar: React.FC = () => {
       title: '',
       date: format(new Date(), 'yyyy-MM-dd'),
       time: '09:00',
-      description: ''
+      description: '',
+      priority: 'medium'
     });
     setIsEventModalOpen(false);
     showNotification('Event created successfully', 'success');
@@ -250,7 +278,8 @@ const SalesCalendar: React.FC = () => {
       title: '',
       date: format(selectedDate, 'yyyy-MM-dd'),
       time: '09:00',
-      description: ''
+      description: '',
+      priority: 'medium'
     });
     setIsEventModalOpen(true);
   };
@@ -341,7 +370,7 @@ const SalesCalendar: React.FC = () => {
                       {dayEvents.slice(0, 3).map(event => (
                         <div
                           key={event.id}
-                          className={`text-xs p-1 rounded border ${getEventTypeColor(event.type)}`}
+                          className={`text-xs p-1 rounded border ${getEventTypeColor(event.type)} relative`}
                           onClick={(e) => {
                             e.stopPropagation();
                             openViewModal(event);
@@ -349,7 +378,10 @@ const SalesCalendar: React.FC = () => {
                         >
                           <div className="flex items-center gap-1">
                             {getEventTypeIcon(event.type)}
-                            <span className="truncate">{event.title}</span>
+                            <span className="truncate flex-1">{event.title}</span>
+                            <div className={`inline-flex items-center gap-1 px-1 rounded text-xs ${getPriorityColor(event.priority)}`}>
+                              {getPriorityIcon(event.priority)}
+                            </div>
                           </div>
                           <div>{event.time}</div>
                         </div>
@@ -380,7 +412,13 @@ const SalesCalendar: React.FC = () => {
                       {getEventTypeIcon(event.type)}
                     </div>
                     <div className="flex-1">
-                      <p className="font-medium text-gray-800">{event.title}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium text-gray-800">{event.title}</p>
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getPriorityColor(event.priority)}`}>
+                          {getPriorityIcon(event.priority)}
+                          {event.priority.toUpperCase()}
+                        </span>
+                      </div>
                       <p className="text-sm text-gray-600">{event.time} ({event.duration}min)</p>
                       {event.contact && (
                         <p className="text-xs text-gray-500">{event.contact.name}</p>
@@ -403,7 +441,13 @@ const SalesCalendar: React.FC = () => {
                     {getEventTypeIcon(event.type)}
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-gray-800">{event.title}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-medium text-gray-800">{event.title}</p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getPriorityColor(event.priority)}`}>
+                        {getPriorityIcon(event.priority)}
+                        {event.priority.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-600">
                       {format(new Date(event.date), 'MMM dd')} at {event.time}
                     </p>
@@ -428,7 +472,13 @@ const SalesCalendar: React.FC = () => {
           {modalMode === 'view' && selectedEvent ? (
             <div className="space-y-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">{selectedEvent.title}</h3>
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-lg font-semibold text-gray-800">{selectedEvent.title}</h3>
+                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${getPriorityColor(selectedEvent.priority)}`}>
+                    {getPriorityIcon(selectedEvent.priority)}
+                    {selectedEvent.priority.toUpperCase()} PRIORITY
+                  </span>
+                </div>
                 <p className="text-gray-600">{selectedEvent.description}</p>
               </div>
               
@@ -487,7 +537,7 @@ const SalesCalendar: React.FC = () => {
             <form onSubmit={handleCreateEvent} className="space-y-4">
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                  To Do <span className="text-red-500">*</span>
+                  Event Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="title"
@@ -528,6 +578,23 @@ const SalesCalendar: React.FC = () => {
                     required
                   />
                 </div>
+              </div>
+
+              <div>
+                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
+                  Priority <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="priority"
+                  value={eventForm.priority}
+                  onChange={(e) => setEventForm({ ...eventForm, priority: e.target.value as 'low' | 'medium' | 'high' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  required
+                >
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
               </div>
 
               <div>
