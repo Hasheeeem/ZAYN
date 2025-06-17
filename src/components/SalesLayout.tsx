@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import SalesSidebar from './SalesSidebar';
 import { useAuth } from '../context/AuthContext';
 import SalesDashboard from '../pages/sales/SalesDashboard';
@@ -12,6 +12,25 @@ const SalesLayout: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const { authState } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Auto-redirect to dashboard on mount if at root
+  useEffect(() => {
+    if (location.pathname === '/' || location.pathname === '') {
+      navigate('/sales/dashboard', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  // Update active page based on current route
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.startsWith('/sales/')) {
+      const page = path.substring(7) || 'dashboard';
+      setActivePage(page);
+    } else if (path === '/') {
+      setActivePage('dashboard');
+    }
+  }, [location.pathname]);
   
   const handleNavigate = (page: string) => {
     setActivePage(page);
@@ -58,6 +77,7 @@ const SalesLayout: React.FC = () => {
             <Routes>
               <Route path="/sales" element={<SalesDashboard />} />
               <Route path="/sales/" element={<SalesDashboard />} />
+              <Route path="/sales/dashboard" element={<SalesDashboard />} />
               <Route path="/sales/leads" element={<SalesLeads />} />
               <Route path="/sales/calendar" element={<SalesCalendar />} />
               <Route path="/sales/targets" element={<SalesTargets />} />

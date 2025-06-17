@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuth } from '../context/AuthContext';
 import Dashboard from '../pages/Dashboard';
@@ -12,6 +12,31 @@ const AdminLayout: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const { authState } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Auto-redirect to dashboard on mount if at root
+  useEffect(() => {
+    if (location.pathname === '/' || location.pathname === '') {
+      navigate('/dashboard', { replace: true });
+      setActivePage('dashboard');
+    }
+  }, [location.pathname, navigate]);
+
+  // Update active page based on current route
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/' || path === '/dashboard') {
+      setActivePage('dashboard');
+    } else if (path === '/leads') {
+      setActivePage('leads');
+    } else if (path === '/usersettings') {
+      setActivePage('usersettings');
+    } else if (path === '/reports') {
+      setActivePage('reports');
+    } else if (path === '/management') {
+      setActivePage('management');
+    }
+  }, [location.pathname]);
   
   const handleNavigate = (page: string) => {
     setActivePage(page);
@@ -54,6 +79,7 @@ const AdminLayout: React.FC = () => {
           <main className="p-8 min-h-[calc(100vh-7rem)] overflow-y-auto">
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/leads" element={<Leads />} />
               <Route path="/usersettings" element={<UserSettings />} />
               <Route path="/reports" element={<Reports />} />
