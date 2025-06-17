@@ -72,6 +72,9 @@ sources_collection = db.sources
 ownership_collection = db.ownership
 login_attempts_collection = db.login_attempts
 targets_collection = db.targets
+# New collections for Calendar and Tasks
+calendar_events_collection = db.calendar_events
+tasks_collection = db.tasks
 
 # Enhanced Pydantic models
 class UserCreate(BaseModel):
@@ -185,6 +188,104 @@ class LeadResponse(BaseModel):
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
     notes: Optional[str] = None
     created_at: str = Field(alias="createdAt")
+
+    class Config:
+        populate_by_name = True
+
+# Calendar Event Models
+class CalendarEventCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    type: str = Field(..., pattern="^(call|meeting|demo|follow-up|task)$")
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    time: str = Field(..., description="Time in HH:MM format")
+    duration: int = Field(default=60, ge=15, le=480)  # 15 minutes to 8 hours
+    description: Optional[str] = Field(None, max_length=1000)
+    contact_name: Optional[str] = Field(None, alias="contactName", max_length=100)
+    contact_email: Optional[str] = Field(None, alias="contactEmail")
+    contact_phone: Optional[str] = Field(None, alias="contactPhone", max_length=20)
+    location: Optional[str] = Field(None, max_length=200)
+    status: str = Field(default="scheduled", pattern="^(scheduled|completed|cancelled)$")
+    priority: str = Field(default="medium", pattern="^(low|medium|high)$")
+
+    class Config:
+        populate_by_name = True
+
+class CalendarEventUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    type: Optional[str] = Field(None, pattern="^(call|meeting|demo|follow-up|task)$")
+    date: Optional[str] = Field(None, description="Date in YYYY-MM-DD format")
+    time: Optional[str] = Field(None, description="Time in HH:MM format")
+    duration: Optional[int] = Field(None, ge=15, le=480)
+    description: Optional[str] = Field(None, max_length=1000)
+    contact_name: Optional[str] = Field(None, alias="contactName", max_length=100)
+    contact_email: Optional[str] = Field(None, alias="contactEmail")
+    contact_phone: Optional[str] = Field(None, alias="contactPhone", max_length=20)
+    location: Optional[str] = Field(None, max_length=200)
+    status: Optional[str] = Field(None, pattern="^(scheduled|completed|cancelled)$")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+
+    class Config:
+        populate_by_name = True
+
+class CalendarEventResponse(BaseModel):
+    id: str
+    title: str
+    type: str
+    date: str
+    time: str
+    duration: int
+    description: Optional[str] = None
+    contact: Optional[dict] = None
+    location: Optional[str] = None
+    status: str
+    priority: str
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+    user_id: str = Field(alias="userId")
+
+    class Config:
+        populate_by_name = True
+
+# Task Models
+class TaskCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=1000)
+    due_date: str = Field(..., alias="dueDate", description="Due date in YYYY-MM-DD format")
+    priority: str = Field(default="medium", pattern="^(low|medium|high)$")
+    status: str = Field(default="pending", pattern="^(pending|completed)$")
+    category: str = Field(default="other", pattern="^(follow-up|admin|prospecting|other)$")
+    assigned_to: Optional[str] = Field(None, alias="assignedTo")
+    related_lead: Optional[str] = Field(None, alias="relatedLead")
+
+    class Config:
+        populate_by_name = True
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=1000)
+    due_date: Optional[str] = Field(None, alias="dueDate", description="Due date in YYYY-MM-DD format")
+    priority: Optional[str] = Field(None, pattern="^(low|medium|high)$")
+    status: Optional[str] = Field(None, pattern="^(pending|completed)$")
+    category: Optional[str] = Field(None, pattern="^(follow-up|admin|prospecting|other)$")
+    assigned_to: Optional[str] = Field(None, alias="assignedTo")
+    related_lead: Optional[str] = Field(None, alias="relatedLead")
+
+    class Config:
+        populate_by_name = True
+
+class TaskResponse(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = None
+    due_date: str = Field(alias="dueDate")
+    priority: str
+    status: str
+    category: str
+    assigned_to: Optional[str] = Field(None, alias="assignedTo")
+    related_lead: Optional[str] = Field(None, alias="relatedLead")
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+    user_id: str = Field(alias="userId")
 
     class Config:
         populate_by_name = True
@@ -411,6 +512,50 @@ def format_target_response(target: dict) -> dict:
         "updatedAt": target["updated_at"]
     }
 
+def format_calendar_event_response(event: dict) -> dict:
+    """Format calendar event response"""
+    contact = None
+    if event.get("contact_name") or event.get("contact_email") or event.get("contact_phone"):
+        contact = {
+            "name": event.get("contact_name"),
+            "email": event.get("contact_email"),
+            "phone": event.get("contact_phone")
+        }
+    
+    return {
+        "id": str(event["_id"]),
+        "title": event["title"],
+        "type": event["type"],
+        "date": event["date"],
+        "time": event["time"],
+        "duration": event["duration"],
+        "description": event.get("description"),
+        "contact": contact,
+        "location": event.get("location"),
+        "status": event["status"],
+        "priority": event["priority"],
+        "createdAt": event["created_at"],
+        "updatedAt": event["updated_at"],
+        "userId": event["user_id"]
+    }
+
+def format_task_response(task: dict) -> dict:
+    """Format task response"""
+    return {
+        "id": str(task["_id"]),
+        "title": task["title"],
+        "description": task.get("description"),
+        "dueDate": task["due_date"],
+        "priority": task["priority"],
+        "status": task["status"],
+        "category": task["category"],
+        "assignedTo": task.get("assigned_to"),
+        "relatedLead": task.get("related_lead"),
+        "createdAt": task["created_at"],
+        "updatedAt": task["updated_at"],
+        "userId": task["user_id"]
+    }
+
 def format_management_response(item: dict) -> dict:
     """Format management item response"""
     formatted = {
@@ -440,6 +585,16 @@ async def startup_event():
         await targets_collection.create_index("user_id", unique=True)
         await login_attempts_collection.create_index("email", unique=True)
         await login_attempts_collection.create_index("locked_until", expireAfterSeconds=0)
+        
+        # Create indexes for new collections
+        await calendar_events_collection.create_index("user_id")
+        await calendar_events_collection.create_index("date")
+        await calendar_events_collection.create_index("status")
+        await tasks_collection.create_index("user_id")
+        await tasks_collection.create_index("due_date")
+        await tasks_collection.create_index("status")
+        await tasks_collection.create_index("priority")
+        
         print("Database indexes created successfully!")
         
         # Create default admin user if it doesn't exist
@@ -813,6 +968,252 @@ async def delete_targets(user_id: str, current_user: dict = Depends(get_admin_us
     return {
         "success": True,
         "message": "Targets deleted successfully"
+    }
+
+# Calendar Events endpoints
+@app.get("/calendar/events")
+async def get_calendar_events(current_user: dict = Depends(get_current_user)):
+    """Get calendar events for current user"""
+    events = await calendar_events_collection.find({"user_id": str(current_user["_id"])}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_calendar_event_response(event) for event in events]
+    }
+
+@app.post("/calendar/events")
+async def create_calendar_event(event_data: CalendarEventCreate, current_user: dict = Depends(get_current_user)):
+    """Create new calendar event"""
+    event_dict = {
+        "title": event_data.title,
+        "type": event_data.type,
+        "date": event_data.date,
+        "time": event_data.time,
+        "duration": event_data.duration,
+        "description": event_data.description,
+        "contact_name": event_data.contact_name,
+        "contact_email": event_data.contact_email,
+        "contact_phone": event_data.contact_phone,
+        "location": event_data.location,
+        "status": event_data.status,
+        "priority": event_data.priority,
+        "user_id": str(current_user["_id"]),
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+        "created_by": str(current_user["_id"])
+    }
+    
+    result = await calendar_events_collection.insert_one(event_dict)
+    event_dict["_id"] = result.inserted_id
+    
+    return {
+        "success": True,
+        "data": format_calendar_event_response(event_dict),
+        "message": "Calendar event created successfully"
+    }
+
+@app.put("/calendar/events/{event_id}")
+async def update_calendar_event(event_id: str, event_data: CalendarEventUpdate, current_user: dict = Depends(get_current_user)):
+    """Update calendar event"""
+    try:
+        object_id = ObjectId(event_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid event ID")
+    
+    # Check if event exists and user has permission
+    event = await calendar_events_collection.find_one({"_id": object_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if user owns the event
+    if event.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own events"
+        )
+    
+    update_data = {k: v for k, v in event_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
+    
+    # Convert camelCase to snake_case for database
+    field_mapping = {
+        "contactName": "contact_name",
+        "contactEmail": "contact_email",
+        "contactPhone": "contact_phone"
+    }
+    
+    db_update_data = {}
+    for key, value in update_data.items():
+        db_key = field_mapping.get(key, key)
+        db_update_data[db_key] = value
+    
+    if db_update_data:
+        db_update_data["updated_at"] = datetime.utcnow().isoformat()
+        db_update_data["updated_by"] = str(current_user["_id"])
+        
+        result = await calendar_events_collection.update_one(
+            {"_id": object_id},
+            {"$set": db_update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Event not found")
+    
+    updated_event = await calendar_events_collection.find_one({"_id": object_id})
+    
+    return {
+        "success": True,
+        "data": format_calendar_event_response(updated_event),
+        "message": "Event updated successfully"
+    }
+
+@app.delete("/calendar/events/{event_id}")
+async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete calendar event"""
+    try:
+        object_id = ObjectId(event_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid event ID")
+    
+    # Check if event exists and user has permission
+    event = await calendar_events_collection.find_one({"_id": object_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if user owns the event
+    if event.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own events"
+        )
+    
+    result = await calendar_events_collection.delete_one({"_id": object_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    return {
+        "success": True,
+        "message": "Event deleted successfully"
+    }
+
+# Tasks endpoints
+@app.get("/tasks")
+async def get_tasks(current_user: dict = Depends(get_current_user)):
+    """Get tasks for current user"""
+    tasks = await tasks_collection.find({"user_id": str(current_user["_id"])}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_task_response(task) for task in tasks]
+    }
+
+@app.post("/tasks")
+async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_current_user)):
+    """Create new task"""
+    task_dict = {
+        "title": task_data.title,
+        "description": task_data.description,
+        "due_date": task_data.due_date,
+        "priority": task_data.priority,
+        "status": task_data.status,
+        "category": task_data.category,
+        "assigned_to": task_data.assigned_to,
+        "related_lead": task_data.related_lead,
+        "user_id": str(current_user["_id"]),
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+        "created_by": str(current_user["_id"])
+    }
+    
+    result = await tasks_collection.insert_one(task_dict)
+    task_dict["_id"] = result.inserted_id
+    
+    return {
+        "success": True,
+        "data": format_task_response(task_dict),
+        "message": "Task created successfully"
+    }
+
+@app.put("/tasks/{task_id}")
+async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = Depends(get_current_user)):
+    """Update task"""
+    try:
+        object_id = ObjectId(task_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+    
+    # Check if task exists and user has permission
+    task = await tasks_collection.find_one({"_id": object_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user owns the task
+    if task.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own tasks"
+        )
+    
+    update_data = {k: v for k, v in task_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
+    
+    # Convert camelCase to snake_case for database
+    field_mapping = {
+        "dueDate": "due_date",
+        "assignedTo": "assigned_to",
+        "relatedLead": "related_lead"
+    }
+    
+    db_update_data = {}
+    for key, value in update_data.items():
+        db_key = field_mapping.get(key, key)
+        db_update_data[db_key] = value
+    
+    if db_update_data:
+        db_update_data["updated_at"] = datetime.utcnow().isoformat()
+        db_update_data["updated_by"] = str(current_user["_id"])
+        
+        result = await tasks_collection.update_one(
+            {"_id": object_id},
+            {"$set": db_update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Task not found")
+    
+    updated_task = await tasks_collection.find_one({"_id": object_id})
+    
+    return {
+        "success": True,
+        "data": format_task_response(updated_task),
+        "message": "Task updated successfully"
+    }
+
+@app.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete task"""
+    try:
+        object_id = ObjectId(task_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+    
+    # Check if task exists and user has permission
+    task = await tasks_collection.find_one({"_id": object_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user owns the task
+    if task.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own tasks"
+        )
+    
+    result = await tasks_collection.delete_one({"_id": object_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return {
+        "success": True,
+        "message": "Task deleted successfully"
     }
 
 # Lead endpoints with role-based access control

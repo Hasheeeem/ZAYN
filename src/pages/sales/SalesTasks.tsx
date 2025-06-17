@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircle, Clock, Plus, Calendar, AlertTriangle, Target, User, Phone, Mail, Edit, Trash2 } from 'lucide-react';
 import ActionButton from '../../components/ActionButton';
 import Modal from '../../components/Modal';
 import { format, addDays, isToday, isPast, isTomorrow } from 'date-fns';
 import { useNotification } from '../../context/NotificationContext';
+import apiService from '../../services/api';
 
 interface Task {
-  id: number;
+  id: string;
   title: string;
   description: string;
   dueDate: string;
@@ -15,6 +16,9 @@ interface Task {
   category: 'follow-up' | 'admin' | 'prospecting' | 'other';
   assignedTo?: string;
   relatedLead?: string;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
 }
 
 const SalesTasks: React.FC = () => {
@@ -24,6 +28,8 @@ const SalesTasks: React.FC = () => {
   const [modalMode, setModalMode] = useState<'add' | 'edit' | 'view'>('add');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
   const [filterPriority, setFilterPriority] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Task form state
   const [taskForm, setTaskForm] = useState({
@@ -34,105 +40,39 @@ const SalesTasks: React.FC = () => {
     category: 'other' as 'follow-up' | 'admin' | 'prospecting' | 'other'
   });
 
-  // Comprehensive tasks data
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: 1,
-      title: 'Update CRM with new lead information',
-      description: 'Add contact details and notes for 5 new leads from yesterday\'s inquiries',
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'admin'
-    },
-    {
-      id: 2,
-      title: 'Send proposal to ABC Corp',
-      description: 'Prepare and send customized domain proposal with pricing tiers',
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'follow-up'
-    },
-    {
-      id: 3,
-      title: 'Research blockchain domain trends',
-      description: 'Analyze market trends for blockchain-related domains for upcoming client',
-      dueDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'prospecting'
-    },
-    {
-      id: 4,
-      title: 'Follow up with TechStartup decision',
-      description: 'Check on the status of domain purchase decision after demo',
-      dueDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'follow-up'
-    },
-    {
-      id: 5,
-      title: 'Prepare Q1 sales report',
-      description: 'Compile quarterly performance metrics and client feedback',
-      dueDate: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'admin'
-    },
-    {
-      id: 6,
-      title: 'Identify 10 new prospects in fintech',
-      description: 'Research and compile list of potential fintech clients for outreach',
-      dueDate: format(addDays(new Date(), 3), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'prospecting'
-    },
-    {
-      id: 7,
-      title: 'Schedule follow-up calls',
-      description: 'Book follow-up calls with 3 qualified leads from last week',
-      dueDate: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      priority: 'high',
-      status: 'pending',
-      category: 'follow-up'
-    },
-    {
-      id: 8,
-      title: 'Update domain inventory spreadsheet',
-      description: 'Add new premium domains and update pricing information',
-      dueDate: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
-      priority: 'low',
-      status: 'pending',
-      category: 'admin'
-    },
-    {
-      id: 9,
-      title: 'Competitor analysis report',
-      description: 'Analyze competitor pricing and service offerings',
-      dueDate: format(addDays(new Date(), 4), 'yyyy-MM-dd'),
-      priority: 'medium',
-      status: 'pending',
-      category: 'other'
-    },
-    {
-      id: 10,
-      title: 'Client satisfaction survey',
-      description: 'Send satisfaction surveys to recent customers',
-      dueDate: format(addDays(new Date(), -1), 'yyyy-MM-dd'),
-      priority: 'low',
-      status: 'completed',
-      category: 'admin'
+  // Load tasks from backend
+  const loadTasks = async () => {
+    setLoading(true);
+    try {
+      const response = await apiService.getTasks();
+      if (response.success) {
+        setTasks(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+      showNotification('Failed to load tasks', 'error');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
 
-  const handleCompleteTask = (taskId: number) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, status: 'completed' } : task
-    ));
-    showNotification('Task marked as completed', 'success');
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  const handleCompleteTask = async (taskId: string) => {
+    try {
+      const response = await apiService.updateTask(taskId, { status: 'completed' });
+      if (response.success) {
+        setTasks(tasks.map(task => 
+          task.id === taskId ? { ...task, status: 'completed' } : task
+        ));
+        showNotification('Task marked as completed', 'success');
+      }
+    } catch (error) {
+      console.error('Error completing task:', error);
+      showNotification('Failed to update task', 'error');
+    }
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
@@ -143,26 +83,35 @@ const SalesTasks: React.FC = () => {
       return;
     }
 
-    const newTask: Task = {
-      id: Date.now(),
-      title: taskForm.title,
-      description: taskForm.description,
-      dueDate: taskForm.dueDate,
-      priority: taskForm.priority,
-      status: 'pending',
-      category: taskForm.category
-    };
+    setLoading(true);
+    try {
+      const taskData = {
+        title: taskForm.title,
+        description: taskForm.description,
+        dueDate: taskForm.dueDate,
+        priority: taskForm.priority,
+        category: taskForm.category
+      };
 
-    setTasks(prev => [...prev, newTask]);
-    setTaskForm({
-      title: '',
-      description: '',
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      priority: 'medium',
-      category: 'other'
-    });
-    setIsTaskModalOpen(false);
-    showNotification('Task created successfully', 'success');
+      const response = await apiService.createTask(taskData);
+      if (response.success) {
+        setTasks(prev => [...prev, response.data]);
+        setTaskForm({
+          title: '',
+          description: '',
+          dueDate: format(new Date(), 'yyyy-MM-dd'),
+          priority: 'medium',
+          category: 'other'
+        });
+        setIsTaskModalOpen(false);
+        showNotification('Task created successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      showNotification('Failed to create task', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEditTask = async (e: React.FormEvent) => {
@@ -173,27 +122,53 @@ const SalesTasks: React.FC = () => {
       return;
     }
 
-    setTasks(tasks.map(task => 
-      task.id === selectedTask.id 
-        ? { 
-            ...task, 
-            title: taskForm.title,
-            description: taskForm.description,
-            dueDate: taskForm.dueDate,
-            priority: taskForm.priority,
-            category: taskForm.category
-          }
-        : task
-    ));
+    setLoading(true);
+    try {
+      const taskData = {
+        title: taskForm.title,
+        description: taskForm.description,
+        dueDate: taskForm.dueDate,
+        priority: taskForm.priority,
+        category: taskForm.category
+      };
 
-    setIsTaskModalOpen(false);
-    setSelectedTask(null);
-    showNotification('Task updated successfully', 'success');
+      const response = await apiService.updateTask(selectedTask.id, taskData);
+      if (response.success) {
+        setTasks(tasks.map(task => 
+          task.id === selectedTask.id ? response.data : task
+        ));
+        setIsTaskModalOpen(false);
+        setSelectedTask(null);
+        showNotification('Task updated successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      showNotification('Failed to update task', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteTask = (taskId: number) => {
-    setTasks(tasks.filter(task => task.id !== taskId));
-    showNotification('Task deleted successfully', 'success');
+  const handleDeleteTask = async (taskId: string) => {
+    if (!window.confirm('Are you sure you want to delete this task?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await apiService.deleteTask(taskId);
+      if (response.success) {
+        setTasks(tasks.filter(task => task.id !== taskId));
+        setIsTaskModalOpen(false);
+        setSelectedTask(null);
+        showNotification('Task deleted successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      showNotification('Failed to delete task', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openAddModal = () => {
@@ -214,7 +189,7 @@ const SalesTasks: React.FC = () => {
     setSelectedTask(task);
     setTaskForm({
       title: task.title,
-      description: task.description,
+      description: task.description || '',
       dueDate: task.dueDate,
       priority: task.priority,
       category: task.category
@@ -277,6 +252,14 @@ const SalesTasks: React.FC = () => {
   const completedTasks = tasks.filter(task => task.status === 'completed');
   const overdueTasks = tasks.filter(task => task.status === 'pending' && isPast(new Date(task.dueDate)) && !isToday(new Date(task.dueDate)));
   const todayTasks = tasks.filter(task => task.status === 'pending' && isToday(new Date(task.dueDate)));
+
+  if (loading && tasks.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Loading tasks...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -377,6 +360,7 @@ const SalesTasks: React.FC = () => {
                           ? 'bg-green-500 border-green-500 text-white' 
                           : 'border-gray-300 hover:border-green-500'
                       }`}
+                      disabled={loading}
                     >
                       {task.status === 'completed' && <CheckCircle size={12} />}
                     </button>
@@ -398,12 +382,14 @@ const SalesTasks: React.FC = () => {
                           <button
                             onClick={() => openEditModal(task)}
                             className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
+                            disabled={loading}
                           >
                             <Edit size={16} />
                           </button>
                           <button
                             onClick={() => handleDeleteTask(task.id)}
                             className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                            disabled={loading}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -477,7 +463,23 @@ const SalesTasks: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4">
+              <div className="flex justify-between items-center pt-4">
+                <div className="flex gap-2">
+                  <ActionButton
+                    label="Edit"
+                    icon={<Edit size={16} />}
+                    onClick={() => openEditModal(selectedTask)}
+                    variant="primary"
+                    size="sm"
+                  />
+                  <ActionButton
+                    label="Delete"
+                    icon={<Trash2 size={16} />}
+                    onClick={() => handleDeleteTask(selectedTask.id)}
+                    variant="danger"
+                    size="sm"
+                  />
+                </div>
                 <ActionButton
                   label="Close"
                   onClick={() => {
@@ -485,20 +487,6 @@ const SalesTasks: React.FC = () => {
                     setSelectedTask(null);
                   }}
                   variant="secondary"
-                />
-                <ActionButton
-                  label="Edit Task"
-                  onClick={() => {
-                    setModalMode('edit');
-                    setTaskForm({
-                      title: selectedTask.title,
-                      description: selectedTask.description,
-                      dueDate: selectedTask.dueDate,
-                      priority: selectedTask.priority,
-                      category: selectedTask.category
-                    });
-                  }}
-                  variant="primary"
                 />
               </div>
             </div>
@@ -516,6 +504,7 @@ const SalesTasks: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Enter task title"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -530,6 +519,7 @@ const SalesTasks: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   rows={3}
                   placeholder="Enter task description"
+                  disabled={loading}
                 />
               </div>
 
@@ -545,6 +535,7 @@ const SalesTasks: React.FC = () => {
                     onChange={(e) => setTaskForm({ ...taskForm, dueDate: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     required
+                    disabled={loading}
                   />
                 </div>
 
@@ -557,6 +548,7 @@ const SalesTasks: React.FC = () => {
                     value={taskForm.priority}
                     onChange={(e) => setTaskForm({ ...taskForm, priority: e.target.value as any })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    disabled={loading}
                   >
                     <option value="low">Low</option>
                     <option value="medium">Medium</option>
@@ -574,6 +566,7 @@ const SalesTasks: React.FC = () => {
                   value={taskForm.category}
                   onChange={(e) => setTaskForm({ ...taskForm, category: e.target.value as any })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  disabled={loading}
                 >
                   <option value="follow-up">Follow-up</option>
                   <option value="admin">Admin</option>
@@ -587,12 +580,14 @@ const SalesTasks: React.FC = () => {
                   label="Cancel"
                   onClick={() => setIsTaskModalOpen(false)}
                   variant="secondary"
+                  disabled={loading}
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg"
+                  disabled={loading}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  {modalMode === 'add' ? 'Create Task' : 'Update Task'}
+                  {loading ? 'Saving...' : modalMode === 'add' ? 'Create Task' : 'Update Task'}
                 </button>
               </div>
             </form>

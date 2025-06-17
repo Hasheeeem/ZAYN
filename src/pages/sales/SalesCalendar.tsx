@@ -1,12 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Plus, Phone, Mail, Video, MapPin, User, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import ActionButton from '../../components/ActionButton';
 import Modal from '../../components/Modal';
 import { format, addDays, startOfWeek, endOfWeek, isSameDay, isToday, subDays } from 'date-fns';
 import { useNotification } from '../../context/NotificationContext';
+import apiService from '../../services/api';
 
 interface CalendarEvent {
-  id: number;
+  id: string;
   title: string;
   type: 'call' | 'meeting' | 'demo' | 'follow-up' | 'task';
   date: string;
@@ -21,6 +22,9 @@ interface CalendarEvent {
   location?: string;
   status: 'scheduled' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high';
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
 }
 
 const SalesCalendar: React.FC = () => {
@@ -29,144 +33,44 @@ const SalesCalendar: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
-  const [modalMode, setModalMode] = useState<'add' | 'view'>('add');
+  const [modalMode, setModalMode] = useState<'add' | 'view' | 'edit'>('add');
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Event form state
   const [eventForm, setEventForm] = useState({
     title: '',
+    type: 'meeting' as 'call' | 'meeting' | 'demo' | 'follow-up' | 'task',
     date: format(new Date(), 'yyyy-MM-dd'),
     time: '09:00',
+    duration: 60,
     description: '',
-    priority: 'medium' as 'low' | 'medium' | 'high'
+    priority: 'medium' as 'low' | 'medium' | 'high',
+    contactName: '',
+    contactEmail: '',
+    contactPhone: '',
+    location: ''
   });
 
-  // Comprehensive events data
-  const [events, setEvents] = useState<CalendarEvent[]>([
-    {
-      id: 1,
-      title: 'Demo Call with TechStartup',
-      type: 'demo',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      time: '10:00',
-      duration: 60,
-      description: 'Product demonstration for enterprise solution. Focus on scalability features.',
-      contact: {
-        name: 'John Doe',
-        email: 'john@techstartup.com',
-        phone: '+1 (555) 123-4567'
-      },
-      status: 'scheduled',
-      priority: 'high'
-    },
-    {
-      id: 2,
-      title: 'Follow-up with E-commerce Pro',
-      type: 'follow-up',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      time: '14:00',
-      duration: 30,
-      description: 'Follow up on proposal sent last week. Discuss pricing options.',
-      contact: {
-        name: 'Jane Smith',
-        email: 'jane@ecommerce-pro.com',
-        phone: '+1 (555) 234-5678'
-      },
-      status: 'scheduled',
-      priority: 'medium'
-    },
-    {
-      id: 3,
-      title: 'Team Sales Meeting',
-      type: 'meeting',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      time: '16:00',
-      duration: 90,
-      description: 'Weekly sales team meeting - Q1 targets review',
-      location: 'Conference Room A',
-      status: 'scheduled',
-      priority: 'medium'
-    },
-    {
-      id: 4,
-      title: 'Client Call - Fintech Solutions',
-      type: 'call',
-      date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      time: '09:00',
-      duration: 45,
-      description: 'Discovery call with fintech startup. Understand their domain needs.',
-      contact: {
-        name: 'Michael Johnson',
-        email: 'mike@fintech-solutions.com',
-        phone: '+1 (555) 345-6789'
-      },
-      status: 'scheduled',
-      priority: 'high'
-    },
-    {
-      id: 5,
-      title: 'Proposal Presentation - HealthTech',
-      type: 'demo',
-      date: format(addDays(new Date(), 1), 'yyyy-MM-dd'),
-      time: '15:00',
-      duration: 75,
-      description: 'Final presentation of domain portfolio to HealthTech App team.',
-      contact: {
-        name: 'Sarah Wilson',
-        email: 'sarah@healthtech-app.com',
-        phone: '+1 (555) 456-7890'
-      },
-      status: 'scheduled',
-      priority: 'high'
-    },
-    {
-      id: 6,
-      title: 'Contract Negotiation - AI Consulting',
-      type: 'meeting',
-      date: format(addDays(new Date(), 2), 'yyyy-MM-dd'),
-      time: '11:00',
-      duration: 60,
-      description: 'Negotiate final terms for AI-consulting.com domain purchase.',
-      contact: {
-        name: 'Emily Davis',
-        email: 'emily@ai-consulting.com',
-        phone: '+1 (555) 678-9012'
-      },
-      status: 'scheduled',
-      priority: 'high'
-    },
-    {
-      id: 7,
-      title: 'Cold Outreach - Green Energy',
-      type: 'call',
-      date: format(addDays(new Date(), 3), 'yyyy-MM-dd'),
-      time: '10:30',
-      duration: 30,
-      description: 'Initial outreach call to green energy company.',
-      contact: {
-        name: 'Robert Miller',
-        email: 'robert@green-energy.com',
-        phone: '+1 (555) 789-0123'
-      },
-      status: 'scheduled',
-      priority: 'medium'
-    },
-    {
-      id: 8,
-      title: 'Product Demo - Food Delivery',
-      type: 'demo',
-      date: format(addDays(new Date(), 4), 'yyyy-MM-dd'),
-      time: '13:00',
-      duration: 45,
-      description: 'Showcase domain options for food delivery platform.',
-      contact: {
-        name: 'Lisa Anderson',
-        email: 'lisa@fooddelivery-app.com',
-        phone: '+1 (555) 890-1234'
-      },
-      status: 'scheduled',
-      priority: 'medium'
+  // Load events from backend
+  const loadEvents = async () => {
+    setLoading(true);
+    try {
+      const response = await apiService.getCalendarEvents();
+      if (response.success) {
+        setEvents(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading events:', error);
+      showNotification('Failed to load calendar events', 'error');
+    } finally {
+      setLoading(false);
     }
-  ]);
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
 
   const weekStart = startOfWeek(currentDate);
   const weekEnd = endOfWeek(currentDate);
@@ -232,11 +136,19 @@ const SalesCalendar: React.FC = () => {
     }
   };
 
-  const handleCompleteEvent = (eventId: number) => {
-    setEvents(events.map(event => 
-      event.id === eventId ? { ...event, status: 'completed' } : event
-    ));
-    showNotification('Event marked as completed', 'success');
+  const handleCompleteEvent = async (eventId: string) => {
+    try {
+      const response = await apiService.updateCalendarEvent(eventId, { status: 'completed' });
+      if (response.success) {
+        setEvents(events.map(event => 
+          event.id === eventId ? { ...event, status: 'completed' } : event
+        ));
+        showNotification('Event marked as completed', 'success');
+      }
+    } catch (error) {
+      console.error('Error completing event:', error);
+      showNotification('Failed to update event', 'error');
+    }
   };
 
   const handleCreateEvent = async (e: React.FormEvent) => {
@@ -247,28 +159,110 @@ const SalesCalendar: React.FC = () => {
       return;
     }
 
-    const newEvent: CalendarEvent = {
-      id: Date.now(),
-      title: eventForm.title,
-      type: 'meeting',
-      date: eventForm.date,
-      time: eventForm.time,
-      duration: 60,
-      description: eventForm.description,
-      status: 'scheduled',
-      priority: eventForm.priority
-    };
+    setLoading(true);
+    try {
+      const eventData = {
+        title: eventForm.title,
+        type: eventForm.type,
+        date: eventForm.date,
+        time: eventForm.time,
+        duration: eventForm.duration,
+        description: eventForm.description,
+        priority: eventForm.priority,
+        contactName: eventForm.contactName || null,
+        contactEmail: eventForm.contactEmail || null,
+        contactPhone: eventForm.contactPhone || null,
+        location: eventForm.location || null
+      };
 
-    setEvents(prev => [...prev, newEvent]);
-    setEventForm({
-      title: '',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      time: '09:00',
-      description: '',
-      priority: 'medium'
-    });
-    setIsEventModalOpen(false);
-    showNotification('Event created successfully', 'success');
+      const response = await apiService.createCalendarEvent(eventData);
+      if (response.success) {
+        setEvents(prev => [...prev, response.data]);
+        setEventForm({
+          title: '',
+          type: 'meeting',
+          date: format(new Date(), 'yyyy-MM-dd'),
+          time: '09:00',
+          duration: 60,
+          description: '',
+          priority: 'medium',
+          contactName: '',
+          contactEmail: '',
+          contactPhone: '',
+          location: ''
+        });
+        setIsEventModalOpen(false);
+        showNotification('Event created successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error creating event:', error);
+      showNotification('Failed to create event', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedEvent || !eventForm.title.trim()) {
+      showNotification('Please enter a title for the event', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const eventData = {
+        title: eventForm.title,
+        type: eventForm.type,
+        date: eventForm.date,
+        time: eventForm.time,
+        duration: eventForm.duration,
+        description: eventForm.description,
+        priority: eventForm.priority,
+        contactName: eventForm.contactName || null,
+        contactEmail: eventForm.contactEmail || null,
+        contactPhone: eventForm.contactPhone || null,
+        location: eventForm.location || null
+      };
+
+      const response = await apiService.updateCalendarEvent(selectedEvent.id, eventData);
+      if (response.success) {
+        setEvents(events.map(event => 
+          event.id === selectedEvent.id ? response.data : event
+        ));
+        setIsEventModalOpen(false);
+        setSelectedEvent(null);
+        showNotification('Event updated successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error updating event:', error);
+      showNotification('Failed to update event', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    if (!window.confirm('Are you sure you want to delete this event?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await apiService.deleteCalendarEvent(eventId);
+      if (response.success) {
+        setEvents(events.filter(event => event.id !== eventId));
+        setIsEventModalOpen(false);
+        setSelectedEvent(null);
+        showNotification('Event deleted successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      showNotification('Failed to delete event', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openAddModal = () => {
@@ -276,10 +270,16 @@ const SalesCalendar: React.FC = () => {
     setSelectedEvent(null);
     setEventForm({
       title: '',
+      type: 'meeting',
       date: format(selectedDate, 'yyyy-MM-dd'),
       time: '09:00',
+      duration: 60,
       description: '',
-      priority: 'medium'
+      priority: 'medium',
+      contactName: '',
+      contactEmail: '',
+      contactPhone: '',
+      location: ''
     });
     setIsEventModalOpen(true);
   };
@@ -290,8 +290,35 @@ const SalesCalendar: React.FC = () => {
     setIsEventModalOpen(true);
   };
 
+  const openEditModal = (event: CalendarEvent) => {
+    setModalMode('edit');
+    setSelectedEvent(event);
+    setEventForm({
+      title: event.title,
+      type: event.type,
+      date: event.date,
+      time: event.time,
+      duration: event.duration,
+      description: event.description || '',
+      priority: event.priority,
+      contactName: event.contact?.name || '',
+      contactEmail: event.contact?.email || '',
+      contactPhone: event.contact?.phone || '',
+      location: event.location || ''
+    });
+    setIsEventModalOpen(true);
+  };
+
   const todayEvents = getEventsForDate(new Date());
   const upcomingEvents = events.filter(event => new Date(event.date) > new Date()).slice(0, 5);
+
+  if (loading && events.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-gray-600">Loading calendar...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -370,7 +397,7 @@ const SalesCalendar: React.FC = () => {
                       {dayEvents.slice(0, 3).map(event => (
                         <div
                           key={event.id}
-                          className={`text-xs p-1 rounded border ${getEventTypeColor(event.type)} relative`}
+                          className={`text-xs p-1 rounded border ${getEventTypeColor(event.type)} relative cursor-pointer`}
                           onClick={(e) => {
                             e.stopPropagation();
                             openViewModal(event);
@@ -466,7 +493,7 @@ const SalesCalendar: React.FC = () => {
           setIsEventModalOpen(false);
           setSelectedEvent(null);
         }}
-        title={modalMode === 'add' ? 'New Event' : 'Event Details'}
+        title={modalMode === 'add' ? 'New Event' : modalMode === 'edit' ? 'Edit Event' : 'Event Details'}
       >
         <div className="p-6">
           {modalMode === 'view' && selectedEvent ? (
@@ -513,28 +540,48 @@ const SalesCalendar: React.FC = () => {
                 </div>
               )}
 
-              <div className="flex justify-end gap-3 pt-4">
-                <ActionButton
-                  label="Close"
-                  onClick={() => {
-                    setIsEventModalOpen(false);
-                    setSelectedEvent(null);
-                  }}
-                  variant="secondary"
-                />
-                <ActionButton
-                  label="Mark Complete"
-                  onClick={() => {
-                    handleCompleteEvent(selectedEvent.id);
-                    setIsEventModalOpen(false);
-                    setSelectedEvent(null);
-                  }}
-                  variant="success"
-                />
+              <div className="flex justify-between items-center pt-4">
+                <div className="flex gap-2">
+                  <ActionButton
+                    label="Edit"
+                    icon={<Edit size={16} />}
+                    onClick={() => openEditModal(selectedEvent)}
+                    variant="primary"
+                    size="sm"
+                  />
+                  <ActionButton
+                    label="Delete"
+                    icon={<Trash2 size={16} />}
+                    onClick={() => handleDeleteEvent(selectedEvent.id)}
+                    variant="danger"
+                    size="sm"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <ActionButton
+                    label="Close"
+                    onClick={() => {
+                      setIsEventModalOpen(false);
+                      setSelectedEvent(null);
+                    }}
+                    variant="secondary"
+                  />
+                  {selectedEvent.status !== 'completed' && (
+                    <ActionButton
+                      label="Mark Complete"
+                      onClick={() => {
+                        handleCompleteEvent(selectedEvent.id);
+                        setIsEventModalOpen(false);
+                        setSelectedEvent(null);
+                      }}
+                      variant="success"
+                    />
+                  )}
+                </div>
               </div>
             </div>
           ) : (
-            <form onSubmit={handleCreateEvent} className="space-y-4">
+            <form onSubmit={modalMode === 'add' ? handleCreateEvent : handleUpdateEvent} className="space-y-4">
               <div>
                 <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
                   Event Title <span className="text-red-500">*</span>
@@ -547,10 +594,51 @@ const SalesCalendar: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   placeholder="Enter event title"
                   required
+                  disabled={loading}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="type" className="block text-sm font-medium text-gray-700 mb-1">
+                    Event Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="type"
+                    value={eventForm.type}
+                    onChange={(e) => setEventForm({ ...eventForm, type: e.target.value as any })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                    disabled={loading}
+                  >
+                    <option value="meeting">Meeting</option>
+                    <option value="call">Call</option>
+                    <option value="demo">Demo</option>
+                    <option value="follow-up">Follow-up</option>
+                    <option value="task">Task</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
+                    Priority <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="priority"
+                    value={eventForm.priority}
+                    onChange={(e) => setEventForm({ ...eventForm, priority: e.target.value as any })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    required
+                    disabled={loading}
+                  >
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label htmlFor="date" className="block text-sm font-medium text-gray-700 mb-1">
                     Date <span className="text-red-500">*</span>
@@ -562,6 +650,7 @@ const SalesCalendar: React.FC = () => {
                     onChange={(e) => setEventForm({ ...eventForm, date: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     required
+                    disabled={loading}
                   />
                 </div>
 
@@ -576,25 +665,25 @@ const SalesCalendar: React.FC = () => {
                     onChange={(e) => setEventForm({ ...eventForm, time: e.target.value })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     required
+                    disabled={loading}
                   />
                 </div>
-              </div>
 
-              <div>
-                <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-1">
-                  Priority <span className="text-red-500">*</span>
-                </label>
-                <select
-                  id="priority"
-                  value={eventForm.priority}
-                  onChange={(e) => setEventForm({ ...eventForm, priority: e.target.value as 'low' | 'medium' | 'high' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  required
-                >
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                </select>
+                <div>
+                  <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">
+                    Duration (min)
+                  </label>
+                  <input
+                    id="duration"
+                    type="number"
+                    min="15"
+                    max="480"
+                    value={eventForm.duration}
+                    onChange={(e) => setEventForm({ ...eventForm, duration: parseInt(e.target.value) || 60 })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    disabled={loading}
+                  />
+                </div>
               </div>
 
               <div>
@@ -608,7 +697,72 @@ const SalesCalendar: React.FC = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   rows={3}
                   placeholder="Enter event description"
+                  disabled={loading}
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="contactName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Contact Name
+                  </label>
+                  <input
+                    id="contactName"
+                    type="text"
+                    value={eventForm.contactName}
+                    onChange={(e) => setEventForm({ ...eventForm, contactName: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Contact person name"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700 mb-1">
+                    Contact Email
+                  </label>
+                  <input
+                    id="contactEmail"
+                    type="email"
+                    value={eventForm.contactEmail}
+                    onChange={(e) => setEventForm({ ...eventForm, contactEmail: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="contact@example.com"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="contactPhone" className="block text-sm font-medium text-gray-700 mb-1">
+                    Contact Phone
+                  </label>
+                  <input
+                    id="contactPhone"
+                    type="tel"
+                    value={eventForm.contactPhone}
+                    onChange={(e) => setEventForm({ ...eventForm, contactPhone: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="+1 (555) 123-4567"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                    Location
+                  </label>
+                  <input
+                    id="location"
+                    type="text"
+                    value={eventForm.location}
+                    onChange={(e) => setEventForm({ ...eventForm, location: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Meeting location or video link"
+                    disabled={loading}
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-4">
@@ -616,12 +770,14 @@ const SalesCalendar: React.FC = () => {
                   label="Cancel"
                   onClick={() => setIsEventModalOpen(false)}
                   variant="secondary"
+                  disabled={loading}
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg"
+                  disabled={loading}
+                  className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg font-medium transition-all duration-200 transform hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
-                  Create Event
+                  {loading ? 'Saving...' : modalMode === 'add' ? 'Create Event' : 'Update Event'}
                 </button>
               </div>
             </form>

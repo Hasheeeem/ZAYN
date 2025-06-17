@@ -227,6 +227,56 @@ class ApiService {
     });
   }
 
+  // Calendar Events methods
+  async getCalendarEvents() {
+    return this.request('/calendar/events');
+  }
+
+  async createCalendarEvent(eventData: any) {
+    return this.request('/calendar/events', {
+      method: 'POST',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async updateCalendarEvent(id: string, eventData: any) {
+    return this.request(`/calendar/events/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(eventData),
+    });
+  }
+
+  async deleteCalendarEvent(id: string) {
+    return this.request(`/calendar/events/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Tasks methods
+  async getTasks() {
+    return this.request('/tasks');
+  }
+
+  async createTask(taskData: any) {
+    return this.request('/tasks', {
+      method: 'POST',
+      body: JSON.stringify(taskData),
+    });
+  }
+
+  async updateTask(id: string, taskData: any) {
+    return this.request(`/tasks/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(taskData),
+    });
+  }
+
+  async deleteTask(id: string) {
+    return this.request(`/tasks/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Management methods
   async getManagementData(type: string) {
     return this.request(`/management/${type}`);
