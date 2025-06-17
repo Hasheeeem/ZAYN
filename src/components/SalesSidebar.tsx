@@ -6,7 +6,6 @@ import {
   Calendar,
   Target,
   User,
-  CheckSquare,
   LogOut 
 } from 'lucide-react';
 
@@ -28,7 +27,6 @@ const SalesSidebar: React.FC<SalesSidebarProps> = ({ activePage, onNavigate }) =
     { id: 'dashboard', name: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'leads', name: 'My Leads', icon: <Users size={20} /> },
     { id: 'calendar', name: 'Calendar', icon: <Calendar size={20} /> },
-    { id: 'tasks', name: 'Tasks', icon: <CheckSquare size={20} /> },
     { id: 'targets', name: 'Sales Targets', icon: <Target size={20} /> },
     { id: 'profile', name: 'My Profile', icon: <User size={20} /> }
   ];

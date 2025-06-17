@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Plus, Phone, Mail, Video, MapPin, User, CheckCircle, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import { Calendar, Clock, Plus, Phone, Mail, Video, MapPin, User, CheckCircle, AlertCircle, Edit, Trash2, Filter, Eye } from 'lucide-react';
 import ActionButton from '../../components/ActionButton';
 import Modal from '../../components/Modal';
 import { format, addDays, startOfWeek, endOfWeek, isSameDay, isToday, subDays } from 'date-fns';
@@ -32,10 +32,13 @@ const SalesCalendar: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isUpcomingModalOpen, setIsUpcomingModalOpen] = useState(false);
+  const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [modalMode, setModalMode] = useState<'add' | 'view' | 'edit'>('add');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(false);
+  const [eventFilter, setEventFilter] = useState<'all' | 'scheduled' | 'completed'>('all');
 
   // Event form state
   const [eventForm, setEventForm] = useState({
@@ -77,7 +80,9 @@ const SalesCalendar: React.FC = () => {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
   const getEventsForDate = (date: Date) => {
-    return events.filter(event => isSameDay(new Date(event.date), date));
+    const dayEvents = events.filter(event => isSameDay(new Date(event.date), date));
+    if (eventFilter === 'all') return dayEvents;
+    return dayEvents.filter(event => event.status === eventFilter);
   };
 
   const getEventTypeIcon = (type: string) => {
@@ -95,19 +100,20 @@ const SalesCalendar: React.FC = () => {
     }
   };
 
-  const getEventTypeColor = (type: string) => {
-    switch (type) {
-      case 'call':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'meeting':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'demo':
-        return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'follow-up':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+  const getEventTypeColor = (type: string, status: string) => {
+    const baseColors = {
+      call: 'bg-green-100 text-green-800 border-green-200',
+      meeting: 'bg-blue-100 text-blue-800 border-blue-200',
+      demo: 'bg-purple-100 text-purple-800 border-purple-200',
+      'follow-up': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      task: 'bg-gray-100 text-gray-800 border-gray-200'
+    };
+
+    if (status === 'completed') {
+      return 'bg-green-50 text-green-700 border-green-300 opacity-75';
     }
+
+    return baseColors[type as keyof typeof baseColors] || baseColors.task;
   };
 
   const getPriorityColor = (priority: string) => {
@@ -310,7 +316,10 @@ const SalesCalendar: React.FC = () => {
   };
 
   const todayEvents = getEventsForDate(new Date());
-  const upcomingEvents = events.filter(event => new Date(event.date) > new Date()).slice(0, 5);
+  const upcomingEvents = events.filter(event => 
+    new Date(event.date) > new Date() && event.status === 'scheduled'
+  ).slice(0, 5);
+  const completedEvents = events.filter(event => event.status === 'completed').slice(0, 5);
 
   if (loading && events.length === 0) {
     return (
@@ -329,11 +338,65 @@ const SalesCalendar: React.FC = () => {
         </div>
         <div className="flex gap-2">
           <ActionButton
+            label="View Upcoming"
+            icon={<Clock size={18} />}
+            onClick={() => setIsUpcomingModalOpen(true)}
+            variant="secondary"
+          />
+          <ActionButton
+            label="View Completed"
+            icon={<CheckCircle size={18} />}
+            onClick={() => setIsCompletedModalOpen(true)}
+            variant="secondary"
+          />
+          <ActionButton
             label="New Event"
             icon={<Plus size={18} />}
             onClick={openAddModal}
             variant="primary"
           />
+        </div>
+      </div>
+
+      {/* Event Filter */}
+      <div className="bg-white rounded-xl shadow-md p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Filter size={16} className="text-gray-500" />
+            <span className="text-sm font-medium text-gray-700">Filter Events:</span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setEventFilter('all')}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                eventFilter === 'all' 
+                  ? 'bg-indigo-100 text-indigo-800' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              All Events
+            </button>
+            <button
+              onClick={() => setEventFilter('scheduled')}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                eventFilter === 'scheduled' 
+                  ? 'bg-blue-100 text-blue-800' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setEventFilter('completed')}
+              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                eventFilter === 'completed' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Completed
+            </button>
+          </div>
         </div>
       </div>
 
@@ -397,7 +460,7 @@ const SalesCalendar: React.FC = () => {
                       {dayEvents.slice(0, 3).map(event => (
                         <div
                           key={event.id}
-                          className={`text-xs p-1 rounded border ${getEventTypeColor(event.type)} relative cursor-pointer`}
+                          className={`text-xs p-1 rounded border ${getEventTypeColor(event.type, event.status)} relative cursor-pointer group`}
                           onClick={(e) => {
                             e.stopPropagation();
                             openViewModal(event);
@@ -406,11 +469,28 @@ const SalesCalendar: React.FC = () => {
                           <div className="flex items-center gap-1">
                             {getEventTypeIcon(event.type)}
                             <span className="truncate flex-1">{event.title}</span>
+                            {event.status === 'completed' && (
+                              <CheckCircle size={12} className="text-green-600" />
+                            )}
                             <div className={`inline-flex items-center gap-1 px-1 rounded text-xs ${getPriorityColor(event.priority)}`}>
                               {getPriorityIcon(event.priority)}
                             </div>
                           </div>
-                          <div>{event.time}</div>
+                          <div className="flex items-center justify-between">
+                            <span>{event.time}</span>
+                            {event.status === 'scheduled' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCompleteEvent(event.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-green-200 rounded"
+                                title="Mark as completed"
+                              >
+                                <CheckCircle size={10} className="text-green-600" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                       
@@ -435,20 +515,33 @@ const SalesCalendar: React.FC = () => {
               {todayEvents.length > 0 ? (
                 todayEvents.map(event => (
                   <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type)}`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type, event.status)}`}>
                       {getEventTypeIcon(event.type)}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-gray-800">{event.title}</p>
+                        <p className={`font-medium ${event.status === 'completed' ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                          {event.title}
+                        </p>
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getPriorityColor(event.priority)}`}>
                           {getPriorityIcon(event.priority)}
                           {event.priority.toUpperCase()}
                         </span>
+                        {event.status === 'completed' && (
+                          <CheckCircle size={16} className="text-green-600" />
+                        )}
                       </div>
                       <p className="text-sm text-gray-600">{event.time} ({event.duration}min)</p>
                       {event.contact && (
                         <p className="text-xs text-gray-500">{event.contact.name}</p>
+                      )}
+                      {event.status === 'scheduled' && (
+                        <button
+                          onClick={() => handleCompleteEvent(event.id)}
+                          className="mt-2 text-xs text-green-600 hover:text-green-800 font-medium"
+                        >
+                          Mark as completed
+                        </button>
                       )}
                     </div>
                   </div>
@@ -460,31 +553,123 @@ const SalesCalendar: React.FC = () => {
           </div>
 
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4">Upcoming Events</h3>
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Quick Stats</h3>
             <div className="space-y-3">
-              {upcomingEvents.map(event => (
-                <div key={event.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type)}`}>
-                    {getEventTypeIcon(event.type)}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium text-gray-800">{event.title}</p>
-                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${getPriorityColor(event.priority)}`}>
-                        {getPriorityIcon(event.priority)}
-                        {event.priority.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      {format(new Date(event.date), 'MMM dd')} at {event.time}
-                    </p>
-                  </div>
-                </div>
-              ))}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Pending Events</span>
+                <span className="font-semibold text-blue-600">
+                  {events.filter(e => e.status === 'scheduled').length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Completed Events</span>
+                <span className="font-semibold text-green-600">
+                  {events.filter(e => e.status === 'completed').length}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">This Week</span>
+                <span className="font-semibold text-indigo-600">
+                  {events.filter(e => {
+                    const eventDate = new Date(e.date);
+                    return eventDate >= weekStart && eventDate <= weekEnd;
+                  }).length}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Upcoming Events Modal */}
+      <Modal
+        isOpen={isUpcomingModalOpen}
+        onClose={() => setIsUpcomingModalOpen(false)}
+        title="Upcoming Events"
+        size="lg"
+      >
+        <div className="p-6">
+          <div className="space-y-4">
+            {upcomingEvents.length > 0 ? (
+              upcomingEvents.map(event => (
+                <div key={event.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type, event.status)}`}>
+                        {getEventTypeIcon(event.type)}
+                      </div>
+                      <div>
+                        <h4 className="font-medium text-gray-800">{event.title}</h4>
+                        <p className="text-sm text-gray-600">
+                          {format(new Date(event.date), 'MMM dd, yyyy')} at {event.time}
+                        </p>
+                        {event.contact && (
+                          <p className="text-xs text-gray-500">{event.contact.name}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(event.priority)}`}>
+                        {event.priority.toUpperCase()}
+                      </span>
+                      <button
+                        onClick={() => handleCompleteEvent(event.id)}
+                        className="p-1 text-green-600 hover:bg-green-100 rounded"
+                        title="Mark as completed"
+                      >
+                        <CheckCircle size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-8">No upcoming events</p>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Completed Events Modal */}
+      <Modal
+        isOpen={isCompletedModalOpen}
+        onClose={() => setIsCompletedModalOpen(false)}
+        title="Completed Events"
+        size="lg"
+      >
+        <div className="p-6">
+          <div className="space-y-4">
+            {completedEvents.length > 0 ? (
+              completedEvents.map(event => (
+                <div key={event.id} className="border rounded-lg p-4 bg-green-50">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${getEventTypeColor(event.type, event.status)}`}>
+                      {getEventTypeIcon(event.type)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-gray-800">{event.title}</h4>
+                        <CheckCircle size={16} className="text-green-600" />
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        {format(new Date(event.date), 'MMM dd, yyyy')} at {event.time}
+                      </p>
+                      {event.contact && (
+                        <p className="text-xs text-gray-500">{event.contact.name}</p>
+                      )}
+                    </div>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${getPriorityColor(event.priority)}`}>
+                      {event.priority.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500 text-center py-8">No completed events</p>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Event Modal */}
       <Modal
@@ -505,6 +690,12 @@ const SalesCalendar: React.FC = () => {
                     {getPriorityIcon(selectedEvent.priority)}
                     {selectedEvent.priority.toUpperCase()} PRIORITY
                   </span>
+                  {selectedEvent.status === 'completed' && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      <CheckCircle size={16} />
+                      COMPLETED
+                    </span>
+                  )}
                 </div>
                 <p className="text-gray-600">{selectedEvent.description}</p>
               </div>
