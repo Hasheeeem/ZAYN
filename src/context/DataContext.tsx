@@ -60,10 +60,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { showNotification } = useNotification();
   const { authState } = useAuth();
 
+  // Calculate user achievements based ONLY on converted leads
   const calculateUserAchievements = (userId: string, allLeads: Lead[]) => {
-    const userLeads = allLeads.filter(lead => lead.assignedTo === userId);
-    const salesAchieved = userLeads.reduce((sum, lead) => sum + (lead.pricePaid || lead.price || 0), 0);
-    const invoiceAchieved = userLeads.reduce((sum, lead) => sum + (lead.invoiceBilled || lead.clicks || 0), 0);
+    // Only count leads that are assigned to the user AND have status 'converted'
+    const userConvertedLeads = allLeads.filter(lead => 
+      lead.assignedTo === userId && lead.status === 'converted'
+    );
+    
+    const salesAchieved = userConvertedLeads.reduce((sum, lead) => sum + (lead.pricePaid || lead.price || 0), 0);
+    const invoiceAchieved = userConvertedLeads.reduce((sum, lead) => sum + (lead.invoiceBilled || lead.clicks || 0), 0);
     
     return { salesAchieved, invoiceAchieved };
   };
@@ -76,11 +81,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (response.success) {
           const targetsMap: Record<string, UserTargets> = {};
           response.data.forEach((target: any) => {
+            // Recalculate achievements based on current converted leads
+            const achievements = calculateUserAchievements(target.userId, leads);
             targetsMap[target.userId] = {
               salesTarget: target.salesTarget,
               invoiceTarget: target.invoiceTarget,
-              salesAchieved: target.salesAchieved,
-              invoiceAchieved: target.invoiceAchieved
+              salesAchieved: achievements.salesAchieved,
+              invoiceAchieved: achievements.invoiceAchieved
             };
           });
           setUserTargetsState(targetsMap);
@@ -89,12 +96,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Load only current user's targets for sales users
         const response = await apiService.getUserTargets(authState.user.id.toString());
         if (response.success && response.data) {
+          // Recalculate achievements based on current converted leads
+          const achievements = calculateUserAchievements(authState.user.id.toString(), leads);
           setUserTargetsState({
             [authState.user.id.toString()]: {
               salesTarget: response.data.salesTarget,
               invoiceTarget: response.data.invoiceTarget,
-              salesAchieved: response.data.salesAchieved,
-              invoiceAchieved: response.data.invoiceAchieved
+              salesAchieved: achievements.salesAchieved,
+              invoiceAchieved: achievements.invoiceAchieved
             }
           });
         }
@@ -121,11 +130,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Get targets response:', response);
       
       if (response.success && response.data) {
+        // Recalculate achievements based on current converted leads
+        const achievements = calculateUserAchievements(userId, leads);
         return {
           salesTarget: response.data.salesTarget || 0,
           invoiceTarget: response.data.invoiceTarget || 0,
-          salesAchieved: response.data.salesAchieved || 0,
-          invoiceAchieved: response.data.invoiceAchieved || 0
+          salesAchieved: achievements.salesAchieved,
+          invoiceAchieved: achievements.invoiceAchieved
         };
       }
       return {
@@ -159,14 +170,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Set targets response:', response);
 
       if (response.success) {
+        // Recalculate achievements based on current converted leads
+        const achievements = calculateUserAchievements(userId, leads);
+        
         // Update local state
         setUserTargetsState(prev => ({
           ...prev,
           [userId]: {
             salesTarget: targets.salesTarget,
             invoiceTarget: targets.invoiceTarget,
-            salesAchieved: response.data.salesAchieved || 0,
-            invoiceAchieved: response.data.invoiceAchieved || 0
+            salesAchieved: achievements.salesAchieved,
+            invoiceAchieved: achievements.invoiceAchieved
           }
         }));
         showNotification('Targets updated successfully', 'success');
@@ -230,6 +244,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Recalculate achievements whenever leads change
+  useEffect(() => {
+    if (leads.length > 0 && Object.keys(userTargets).length > 0) {
+      const updatedTargets = { ...userTargets };
+      
+      // Recalculate achievements for all users based on converted leads only
+      Object.keys(updatedTargets).forEach(userId => {
+        const achievements = calculateUserAchievements(userId, leads);
+        updatedTargets[userId] = {
+          ...updatedTargets[userId],
+          salesAchieved: achievements.salesAchieved,
+          invoiceAchieved: achievements.invoiceAchieved
+        };
+      });
+      
+      setUserTargetsState(updatedTargets);
+    }
+  }, [leads]);
+
   useEffect(() => {
     if (authState.isAuthenticated) {
       refreshData();
@@ -260,8 +293,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const newLead = response.data;
         setLeads(prev => [...prev, newLead]);
         
-        // Update user achievements if lead is assigned
-        if (newLead.assignedTo) {
+        // Only update achievements if the new lead is converted
+        if (newLead.assignedTo && newLead.status === 'converted') {
           const achievements = calculateUserAchievements(newLead.assignedTo, [...leads, newLead]);
           updateUserTargets(newLead.assignedTo, achievements);
         }
@@ -309,23 +342,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const response = await apiService.updateLead(updatedLead.id.toString(), backendData);
       if (response.success) {
         const oldLead = leads.find(l => l.id === updatedLead.id);
+        const newLeadData = response.data;
+        
         setLeads(prev => prev.map(lead => 
-          lead.id === updatedLead.id ? response.data : lead
+          lead.id === updatedLead.id ? newLeadData : lead
         ));
         
-        // Update achievements for both old and new assigned users
+        // Update achievements for affected users based on status changes
         const updatedLeads = leads.map(lead => 
-          lead.id === updatedLead.id ? response.data : lead
+          lead.id === updatedLead.id ? newLeadData : lead
         );
         
-        if (oldLead?.assignedTo && oldLead.assignedTo !== response.data.assignedTo) {
-          const oldAchievements = calculateUserAchievements(oldLead.assignedTo, updatedLeads);
-          updateUserTargets(oldLead.assignedTo, oldAchievements);
-        }
+        // Check if the lead status changed to/from converted or assignment changed
+        const statusChanged = oldLead?.status !== newLeadData.status;
+        const assignmentChanged = oldLead?.assignedTo !== newLeadData.assignedTo;
         
-        if (response.data.assignedTo) {
-          const newAchievements = calculateUserAchievements(response.data.assignedTo, updatedLeads);
-          updateUserTargets(response.data.assignedTo, newAchievements);
+        if (statusChanged || assignmentChanged) {
+          // Update achievements for old assigned user (if any)
+          if (oldLead?.assignedTo) {
+            const oldAchievements = calculateUserAchievements(oldLead.assignedTo, updatedLeads);
+            updateUserTargets(oldLead.assignedTo, oldAchievements);
+          }
+          
+          // Update achievements for new assigned user (if any)
+          if (newLeadData.assignedTo) {
+            const newAchievements = calculateUserAchievements(newLeadData.assignedTo, updatedLeads);
+            updateUserTargets(newLeadData.assignedTo, newAchievements);
+          }
         }
         
         showNotification('Lead updated successfully', 'success');
@@ -346,8 +389,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.success) {
         setLeads(prev => prev.filter(lead => lead.id.toString() !== id));
         
-        // Update achievements for assigned user
-        if (leadToDelete?.assignedTo) {
+        // Update achievements for assigned user if the deleted lead was converted
+        if (leadToDelete?.assignedTo && leadToDelete.status === 'converted') {
           const updatedLeads = leads.filter(lead => lead.id.toString() !== id);
           const achievements = calculateUserAchievements(leadToDelete.assignedTo, updatedLeads);
           updateUserTargets(leadToDelete.assignedTo, achievements);
@@ -371,15 +414,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.success) {
         setLeads(prev => prev.filter(lead => !ids.includes(lead.id.toString())));
         
-        // Update achievements for all affected users
-        const affectedUsers = new Set(leadsToDelete.map(lead => lead.assignedTo).filter(Boolean));
+        // Update achievements for all affected users (only for converted leads)
+        const affectedUsers = new Set(
+          leadsToDelete
+            .filter(lead => lead.status === 'converted' && lead.assignedTo)
+            .map(lead => lead.assignedTo!)
+        );
         const updatedLeads = leads.filter(lead => !ids.includes(lead.id.toString()));
         
         affectedUsers.forEach(userId => {
-          if (userId) {
-            const achievements = calculateUserAchievements(userId, updatedLeads);
-            updateUserTargets(userId, achievements);
-          }
+          const achievements = calculateUserAchievements(userId, updatedLeads);
+          updateUserTargets(userId, achievements);
         });
         
         showNotification(`${ids.length} leads deleted successfully`, 'success');
@@ -404,10 +449,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             : lead
         ));
         
-        // Update achievements for all affected users
+        // Update achievements for all affected users (only for converted leads)
         const affectedUsers = new Set([
           salesPersonId,
-          ...leadsToUpdate.map(lead => lead.assignedTo).filter(Boolean)
+          ...leadsToUpdate
+            .filter(lead => lead.status === 'converted' && lead.assignedTo)
+            .map(lead => lead.assignedTo!)
         ]);
         
         const updatedLeads = leads.map(lead => 
@@ -417,10 +464,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
         
         affectedUsers.forEach(userId => {
-          if (userId) {
-            const achievements = calculateUserAchievements(userId, updatedLeads);
-            updateUserTargets(userId, achievements);
-          }
+          const achievements = calculateUserAchievements(userId, updatedLeads);
+          updateUserTargets(userId, achievements);
         });
         
         showNotification(`${ids.length} leads assigned successfully`, 'success');
