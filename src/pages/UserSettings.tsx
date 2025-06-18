@@ -81,6 +81,7 @@ const UserSettings: React.FC = () => {
 
     setIsLoading(true);
     try {
+      console.log('Creating user with data:', newUserForm);
       const response = await apiService.createUser(newUserForm);
       
       if (response.success) {
@@ -100,10 +101,18 @@ const UserSettings: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error creating user:', error);
-      if (error.message?.includes('400')) {
-        showNotification('Email already exists or invalid data', 'error');
+      
+      // Handle specific error cases
+      if (error.message?.includes('404')) {
+        showNotification('User management feature is not available. Please check if the backend supports user creation.', 'error');
+      } else if (error.message?.includes('400')) {
+        showNotification('Email already exists or invalid data provided', 'error');
+      } else if (error.message?.includes('403')) {
+        showNotification('You do not have permission to create users', 'error');
+      } else if (error.message?.includes('Unable to connect')) {
+        showNotification('Cannot connect to server. Please ensure the backend is running.', 'error');
       } else {
-        showNotification('Failed to create user. Please try again.', 'error');
+        showNotification(error.message || 'Failed to create user. Please try again.', 'error');
       }
     } finally {
       setIsLoading(false);
@@ -148,6 +157,7 @@ const UserSettings: React.FC = () => {
         updateData.password = editUserForm.password;
       }
 
+      console.log('Updating user with data:', updateData);
       const response = await apiService.updateUser(selectedUser.id.toString(), updateData);
       
       if (response.success) {
@@ -168,10 +178,18 @@ const UserSettings: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error updating user:', error);
-      if (error.message?.includes('400')) {
-        showNotification('Email already exists or invalid data', 'error');
+      
+      // Handle specific error cases
+      if (error.message?.includes('404')) {
+        showNotification('User not found or user management feature is not available', 'error');
+      } else if (error.message?.includes('400')) {
+        showNotification('Email already exists or invalid data provided', 'error');
+      } else if (error.message?.includes('403')) {
+        showNotification('You do not have permission to update this user', 'error');
+      } else if (error.message?.includes('Unable to connect')) {
+        showNotification('Cannot connect to server. Please ensure the backend is running.', 'error');
       } else {
-        showNotification('Failed to update user. Please try again.', 'error');
+        showNotification(error.message || 'Failed to update user. Please try again.', 'error');
       }
     } finally {
       setIsLoading(false);
@@ -183,6 +201,7 @@ const UserSettings: React.FC = () => {
 
     setIsLoading(true);
     try {
+      console.log('Deleting user with ID:', selectedUser.id);
       const response = await apiService.deleteUser(selectedUser.id.toString());
       
       if (response.success) {
@@ -196,7 +215,19 @@ const UserSettings: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error deleting user:', error);
-      showNotification('Failed to delete user. Please try again.', 'error');
+      
+      // Handle specific error cases
+      if (error.message?.includes('404')) {
+        showNotification('User not found or user management feature is not available', 'error');
+      } else if (error.message?.includes('403')) {
+        showNotification('You do not have permission to delete this user', 'error');
+      } else if (error.message?.includes('400')) {
+        showNotification('Cannot delete user. User may have associated data.', 'error');
+      } else if (error.message?.includes('Unable to connect')) {
+        showNotification('Cannot connect to server. Please ensure the backend is running.', 'error');
+      } else {
+        showNotification(error.message || 'Failed to delete user. Please try again.', 'error');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -396,7 +427,10 @@ const UserSettings: React.FC = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800">User Settings</h2>
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-800">User Settings</h2>
+          <p className="text-gray-600 mt-1">Manage system users and their permissions</p>
+        </div>
         <ActionButton
           label="Add New User"
           icon={<UserPlus size={18} />}
@@ -404,6 +438,22 @@ const UserSettings: React.FC = () => {
           variant="primary"
         />
       </div>
+
+      {/* Backend Status Warning */}
+      {managementUsers.length === 0 && !isLoading && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-2">
+            <Users className="text-yellow-600" size={20} />
+            <div>
+              <p className="text-yellow-800 font-medium">User Management Status</p>
+              <p className="text-yellow-700 text-sm mt-1">
+                No users found. This could mean the backend user management endpoints are not implemented yet, 
+                or there are no users in the system.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-md p-6 mb-6">
         <SearchFilter
