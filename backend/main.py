@@ -745,44 +745,193 @@ async def logout(current_user: dict = Depends(get_current_user)):
     return {"success": True, "message": "Logged out successfully"}
 
 # User endpoints (Admin only)
-@app.get("/users")
-async def get_users(current_user: dict = Depends(get_admin_user)):
-    """Get all users (Admin only)"""
-    users = await users_collection.find({}).to_list(None)
-    return {
-        "success": True,
-        "data": [format_user_response(user) for user in users]
-    }
-
-@app.post("/users")
-async def create_user(user_data: UserCreate, current_user: dict = Depends(get_admin_user)):
-    """Create new user (Admin only)"""
+@app.get("/users", response_model=List[UserResponse])
+async def get_users(current_user: dict = Depends(require_admin)):
     try:
-        user_dict = {
+        users = await db.users.find({}).to_list(None)
+        user_responses = []
+        
+        for user in users:
+            user_response = UserResponse(
+                id=str(user["_id"]),
+                name=user["name"],
+                email=user["email"],
+                phone_number=user.get("phone_number"),
+                role=user["role"],
+                status=user.get("status", "active"),
+                created_at=user.get("created_at", datetime.utcnow()),
+                last_login=user.get("last_login")
+            )
+            user_responses.append(user_response)
+        
+        return user_responses
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch users")
+
+@app.post("/users", response_model=UserResponse)
+async def create_user(user_data: UserCreate, current_user: dict = Depends(require_admin)):
+    try:
+        # Check if email already exists
+        existing_user = await db.users.find_one({"email": user_data.email})
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        
+        # Create new user
+        new_user = {
             "name": user_data.name,
-            "email": user_data.email.lower(),
+            "email": user_data.email,
             "password": hash_password(user_data.password),
+            "phone_number": user_data.phone_number,
             "role": user_data.role,
             "status": "active",
-            "phone_number": user_data.phone_number,
-            "created_at": datetime.utcnow().isoformat(),
-            "last_login": None,
-            "created_by": str(current_user["_id"])
+            "created_at": datetime.utcnow(),
+            "last_login": None
         }
         
-        result = await users_collection.insert_one(user_dict)
-        user_dict["_id"] = result.inserted_id
+        result = await db.users.insert_one(new_user)
+        
+        # Return the created user
+        created_user = await db.users.find_one({"_id": result.inserted_id})
+        
+        return UserResponse(
+            id=str(created_user["_id"]),
+            name=created_user["name"],
+            email=created_user["email"],
+            phone_number=created_user.get("phone_number"),
+            role=created_user["role"],
+            status=created_user.get("status", "active"),
+            created_at=created_user.get("created_at", datetime.utcnow()),
+            last_login=created_user.get("last_login")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+@app.put("/users/{user_id}", response_model=UserResponse)
+async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = Depends(require_admin)):
+    try:
+        # Validate ObjectId
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+        
+        # Check if user exists
+        existing_user = await db.users.find_one({"_id": ObjectId(user_id)})
+        if not existing_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Prepare update data
+        update_data = {}
+        
+        if user_data.name is not None:
+            update_data["name"] = user_data.name
+        
+        if user_data.email is not None:
+            # Check if email is already taken by another user
+            email_check = await db.users.find_one({
+                "email": user_data.email,
+                "_id": {"$ne": ObjectId(user_id)}
+            })
+            if email_check:
+                raise HTTPException(status_code=400, detail="Email already exists")
+            update_data["email"] = user_data.email
+        
+        if user_data.phone_number is not None:
+            update_data["phone_number"] = user_data.phone_number
+        
+        if user_data.role is not None:
+            update_data["role"] = user_data.role
+        
+        if user_data.password is not None and user_data.password.strip():
+            update_data["password"] = hash_password(user_data.password)
+        
+        # Add updated timestamp
+        update_data["updated_at"] = datetime.utcnow()
+        
+        # Update user
+        result = await db.users.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Return updated user
+        updated_user = await db.users.find_one({"_id": ObjectId(user_id)})
+        
+        return UserResponse(
+            id=str(updated_user["_id"]),
+            name=updated_user["name"],
+            email=updated_user["email"],
+            phone_number=updated_user.get("phone_number"),
+            role=updated_user["role"],
+            status=updated_user.get("status", "active"),
+            created_at=updated_user.get("created_at", datetime.utcnow()),
+            last_login=updated_user.get("last_login")
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
+
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(require_admin)):
+    try:
+        # Validate ObjectId
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
+        
+        # Check if user exists
+        existing_user = await db.users.find_one({"_id": ObjectId(user_id)})
+        if not existing_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Prevent deleting the current admin user
+        if str(existing_user["_id"]) == current_user["id"]:
+            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        
+        # Check if user has assigned leads
+        assigned_leads_count = await db.leads.count_documents({"assignedTo": user_id})
+        
+        if assigned_leads_count > 0:
+            # Instead of preventing deletion, we'll unassign the leads
+            await db.leads.update_many(
+                {"assignedTo": user_id},
+                {"$unset": {"assignedTo": ""}}
+            )
+            logger.info(f"Unassigned {assigned_leads_count} leads from user {user_id}")
+        
+        # Delete user targets if they exist
+        await db.targets.delete_many({"userId": user_id})
+        
+        # Delete the user
+        result = await db.users.delete_one({"_id": ObjectId(user_id)})
+        
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        logger.info(f"User {user_id} deleted successfully by admin {current_user['id']}")
         
         return {
             "success": True,
-            "data": format_user_response(user_dict),
-            "message": "User created successfully"
+            "message": "User deleted successfully",
+            "data": {
+                "deleted_user_id": user_id,
+                "unassigned_leads": assigned_leads_count
+            }
         }
-    except DuplicateKeyError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already exists"
-        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete user")
 
 @app.get("/salespeople")
 async def get_salespeople(current_user: dict = Depends(get_current_user)):
