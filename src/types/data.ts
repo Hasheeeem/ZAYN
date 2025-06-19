@@ -50,6 +50,7 @@ export const DataContext = createContext<DataContextType>({
 });
 
 export const useData = () => useContext(DataContext);
+
 export interface Lead {
   id: number | string;
   firstName: string;
@@ -70,6 +71,10 @@ export interface Lead {
   companyName?: string;
   pricePaid?: number;
   invoiceBilled?: number;
+  // Brand, Product, Location fields
+  brand?: string;
+  product?: string;
+  location?: string;
 }
 
 export interface User {
@@ -283,7 +288,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         status: leadData.status,
         source: leadData.source,
         assignedTo: leadData.assignedTo || null,
-        notes: leadData.notes || null
+        notes: leadData.notes || null,
+        // Include the new Brand, Product, Location fields
+        brand: leadData.brand || null,
+        product: leadData.product || null,
+        location: leadData.location || null
       };
 
       console.log('Sending lead data to backend:', backendData);
@@ -333,7 +342,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         status: updatedLead.status,
         source: updatedLead.source,
         assignedTo: updatedLead.assignedTo || null,
-        notes: updatedLead.notes || null
+        notes: updatedLead.notes || null,
+        // Include the new Brand, Product, Location fields
+        brand: updatedLead.brand || null,
+        product: updatedLead.product || null,
+        location: updatedLead.location || null
       };
 
       const response = await apiService.updateLead(updatedLead.id.toString(), backendData);
