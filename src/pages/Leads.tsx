@@ -384,6 +384,27 @@ const Leads: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Brand, Product, Location Section */}
+            {(selectedLead.brand || selectedLead.product || selectedLead.location) && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Business Details</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Brand</label>
+                    <p className="font-medium">{selectedLead.brand || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Product</label>
+                    <p className="font-medium">{selectedLead.product || 'Not specified'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Location</label>
+                    <p className="font-medium">{selectedLead.location || 'Not specified'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {selectedLead.notes && (
               <div>
