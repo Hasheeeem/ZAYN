@@ -16,11 +16,16 @@ import secrets
 import hashlib
 import time
 from functools import wraps
+import logging
+
 
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(title="ZownLead CRM API", version="1.0.0")
+
+
+logger = logging.getLogger(__name__)
 
 # CORS middleware
 app.add_middleware(
@@ -82,7 +87,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8, max_length=128)
     role: str = Field(..., pattern="^(admin|sales)$")
-    phone_number: Optional[str] = Field(None, max_length=20)
+    phone_number: Optional[str] = Field(None, max_length=8)
 
     @validator('password')
     def validate_password(cls, v):
@@ -109,6 +114,13 @@ class UserResponse(BaseModel):
     last_login: Optional[str] = None
     phone_number: Optional[str] = None
     created_at: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=100)
+    email: Optional[EmailStr] = None
+    password: Optional[str] = Field(None, min_length=8, max_length=128)
+    role: Optional[str] = Field(None, pattern="^(admin|sales)$")
+    phone_number: Optional[str] = Field(None, max_length=8)
 
 class TargetCreate(BaseModel):
     user_id: str = Field(alias="userId")
@@ -556,6 +568,34 @@ def format_task_response(task: dict) -> dict:
         "userId": task["user_id"]
     }
 
+def serialize_doc(doc):
+    """Convert MongoDB document to JSON serializable format"""
+    if doc is None:
+        return None
+    
+    if isinstance(doc, list):
+        return [serialize_doc(item) for item in doc]
+    
+    if isinstance(doc, dict):
+        result = {}
+        for key, value in doc.items():
+            if key == "_id":
+                result["id"] = str(value)
+            elif isinstance(value, ObjectId):
+                result[key] = str(value)
+            elif isinstance(value, datetime):
+                result[key] = value.isoformat()
+            elif isinstance(value, dict):
+                result[key] = serialize_doc(value)
+            elif isinstance(value, list):
+                result[key] = serialize_doc(value)
+            else:
+                result[key] = value
+        return result
+    
+    return doc
+
+
 def format_management_response(item: dict) -> dict:
     """Format management item response"""
     formatted = {
@@ -783,6 +823,99 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_ad
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already exists"
         )
+    
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)):
+    """
+    Delete a sales user by ID (Admin only). Cannot delete self or another admin.
+    """
+    try:
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+
+        # Prevent deleting your own account
+        if str(current_user["_id"]) == user_id:
+            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        
+        # Fetch the user to check their role
+        user_to_delete = await users_collection.find_one({"_id": ObjectId(user_id)})
+
+        if not user_to_delete:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if user_to_delete.get("role") != "sales":
+            raise HTTPException(status_code=403, detail="Only sales users can be deleted")
+
+        # Proceed with deletion
+        result = await users_collection.delete_one({"_id": ObjectId(user_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User not found during deletion")
+
+        return {"success": True, "message": "Sales user deleted successfully"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete user")
+
+@app.put("/users/{user_id}")
+async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = Depends(get_admin_user)):
+    try:
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        
+        update_data = {}
+
+        if user_data.name is not None:
+            update_data["name"] = user_data.name
+
+        if user_data.email is not None:
+            email = user_data.email.lower()
+            # Check if email already exists for other users
+            existing_user = await users_collection.find_one({
+                "email": email,
+                "_id": {"$ne": ObjectId(user_id)}
+            })
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email already exists")
+            update_data["email"] = email
+
+        if user_data.phone_number is not None:
+            update_data["phone_number"] = user_data.phone_number
+
+        if user_data.role is not None:
+            update_data["role"] = user_data.role
+
+        if user_data.password is not None:
+            update_data["password"] = hash_password(user_data.password)
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No data to update")
+
+        update_data["updated_at"] = datetime.utcnow()
+
+        result = await users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        updated_user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        user_response = serialize_doc(updated_user)
+        user_response.pop("password", None)
+
+        return {"success": True, "data": user_response}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
+
 
 @app.get("/salespeople")
 async def get_salespeople(current_user: dict = Depends(get_current_user)):
