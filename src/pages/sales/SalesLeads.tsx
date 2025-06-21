@@ -39,7 +39,12 @@ const SalesLeads: React.FC = () => {
 
   const handleAddLead = async (lead: Lead) => {
     try {
-      await addLead(lead);
+      // Ensure the lead is assigned to the current sales user
+      const leadWithAssignment = {
+        ...lead,
+        assignedTo: authState.user?.id.toString() || ''
+      };
+      await addLead(leadWithAssignment);
       setIsAddModalOpen(false);
     } catch (error) {
       // Error is handled in the context
@@ -177,7 +182,7 @@ const SalesLeads: React.FC = () => {
         />
       </div>
 
-      {/* Add Lead Modal */}
+      {/* Add Lead Modal - Pass isAdmin=false for sales users */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -299,7 +304,7 @@ const SalesLeads: React.FC = () => {
         )}
       </Modal>
 
-      {/* Edit Lead Modal */}
+      {/* Edit Lead Modal - Pass isAdmin=false for sales users */}
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}

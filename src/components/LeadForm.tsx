@@ -66,7 +66,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     location: initialData?.location || ''
   });
 
-  // Load dropdown options on component mount
+  // Load dropdown options on component mount - ALWAYS load regardless of user role
   useEffect(() => {
     loadDropdownOptions();
   }, []);
@@ -90,24 +90,53 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   const loadDropdownOptions = async () => {
     setLoadingOptions(true);
     try {
+      console.log('Loading dropdown options...');
       const [brandsResponse, productsResponse, locationsResponse] = await Promise.all([
         apiService.getManagementData('brands'),
         apiService.getManagementData('products'),
         apiService.getManagementData('locations')
       ]);
 
+      console.log('Brands response:', brandsResponse);
+      console.log('Products response:', productsResponse);
+      console.log('Locations response:', locationsResponse);
+
       if (brandsResponse.success) {
-        setBrands(brandsResponse.data.map((item: any) => ({ id: item.id, name: item.name })));
+        const brandOptions = brandsResponse.data.map((item: any) => ({ 
+          id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
+          name: item.name 
+        }));
+        console.log('Setting brands:', brandOptions);
+        setBrands(brandOptions);
+      } else {
+        console.warn('Failed to load brands:', brandsResponse.message);
       }
+      
       if (productsResponse.success) {
-        setProducts(productsResponse.data.map((item: any) => ({ id: item.id, name: item.name })));
+        const productOptions = productsResponse.data.map((item: any) => ({ 
+          id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
+          name: item.name 
+        }));
+        console.log('Setting products:', productOptions);
+        setProducts(productOptions);
+      } else {
+        console.warn('Failed to load products:', productsResponse.message);
       }
+      
       if (locationsResponse.success) {
-        setLocations(locationsResponse.data.map((item: any) => ({ id: item.id, name: item.name })));
+        const locationOptions = locationsResponse.data.map((item: any) => ({ 
+          id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
+          name: item.name 
+        }));
+        console.log('Setting locations:', locationOptions);
+        setLocations(locationOptions);
+      } else {
+        console.warn('Failed to load locations:', locationsResponse.message);
       }
     } catch (error) {
       console.error('Error loading dropdown options:', error);
-      // Don't show error notification as these are optional fields
+      // Show a user-friendly message but don't block the form
+      showNotification('Could not load some dropdown options. You can still add custom entries.', 'warning');
     } finally {
       setLoadingOptions(false);
     }
@@ -115,6 +144,8 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
   const addCustomOption = async (type: 'brands' | 'products' | 'locations', name: string) => {
     try {
+      console.log(`Adding custom ${type}:`, name);
+      
       const data = {
         name: name.trim(),
         status: 'active'
@@ -131,10 +162,15 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         data.description = '';
       }
 
+      console.log(`Creating ${type} with data:`, data);
       const response = await apiService.createManagementItem(type, data);
+      console.log(`Create ${type} response:`, response);
       
       if (response.success) {
-        const newOption = { id: response.data.id, name: response.data.name };
+        const newOption = { 
+          id: response.data.id?.toString() || response.data._id?.toString() || Math.random().toString(), 
+          name: response.data.name 
+        };
         
         // Update the appropriate dropdown
         if (type === 'brands') {
@@ -155,10 +191,12 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         }
         
         showNotification(`${name} added successfully`, 'success');
+      } else {
+        throw new Error(response.message || `Failed to add ${name}`);
       }
     } catch (error) {
       console.error(`Error adding custom ${type}:`, error);
-      showNotification(`Failed to add ${name}`, 'error');
+      showNotification(`Failed to add ${name}. ${error.message || ''}`, 'error');
     }
   };
 
@@ -273,6 +311,19 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   const handleCustomSubmit = (type: 'brands' | 'products' | 'locations', value: string) => {
     if (value.trim()) {
       addCustomOption(type, value.trim());
+    }
+  };
+
+  const handleCustomCancel = (field: 'brand' | 'product' | 'location') => {
+    if (field === 'brand') {
+      setShowCustomBrand(false);
+      setCustomBrand('');
+    } else if (field === 'product') {
+      setShowCustomProduct(false);
+      setCustomProduct('');
+    } else if (field === 'location') {
+      setShowCustomLocation(false);
+      setCustomLocation('');
     }
   };
 
@@ -457,6 +508,11 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
       {/* Brand, Product, Location Section */}
       <div className="border-t pt-4 mt-6">
         <h3 className="text-lg font-medium text-gray-800 mb-4">Business Details</h3>
+        {loadingOptions && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-700 text-sm">Loading business details options...</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Brand Field */}
           <div>
@@ -483,10 +539,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowCustomBrand(false);
-                    setCustomBrand('');
-                  }}
+                  onClick={() => handleCustomCancel('brand')}
                   className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   disabled={isLoading || saving}
                 >
@@ -537,10 +590,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowCustomProduct(false);
-                    setCustomProduct('');
-                  }}
+                  onClick={() => handleCustomCancel('product')}
                   className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   disabled={isLoading || saving}
                 >
@@ -591,10 +641,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowCustomLocation(false);
-                    setCustomLocation('');
-                  }}
+                  onClick={() => handleCustomCancel('location')}
                   className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
                   disabled={isLoading || saving}
                 >
