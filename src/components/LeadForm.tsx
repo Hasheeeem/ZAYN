@@ -90,7 +90,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   const loadDropdownOptions = async () => {
     setLoadingOptions(true);
     try {
-      console.log('Loading dropdown options...');
+      console.log('Loading dropdown options for', isAdmin ? 'admin' : 'sales', 'user...');
       const [brandsResponse, productsResponse, locationsResponse] = await Promise.all([
         apiService.getManagementData('brands'),
         apiService.getManagementData('products'),
@@ -110,6 +110,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         setBrands(brandOptions);
       } else {
         console.warn('Failed to load brands:', brandsResponse.message);
+        setBrands([]); // Set empty array on failure
       }
       
       if (productsResponse.success) {
@@ -121,6 +122,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         setProducts(productOptions);
       } else {
         console.warn('Failed to load products:', productsResponse.message);
+        setProducts([]); // Set empty array on failure
       }
       
       if (locationsResponse.success) {
@@ -132,11 +134,15 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         setLocations(locationOptions);
       } else {
         console.warn('Failed to load locations:', locationsResponse.message);
+        setLocations([]); // Set empty array on failure
       }
     } catch (error) {
       console.error('Error loading dropdown options:', error);
-      // Show a user-friendly message but don't block the form
-      showNotification('Could not load some dropdown options. You can still add custom entries.', 'warning');
+      // Set empty arrays on error and show notification
+      setBrands([]);
+      setProducts([]);
+      setLocations([]);
+      showNotification('Could not load dropdown options. You can still add custom entries.', 'warning');
     } finally {
       setLoadingOptions(false);
     }
@@ -190,7 +196,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           setCustomLocation('');
         }
         
-        showNotification(`${name} added successfully`, 'success');
+        showNotification(`${name} added successfully and will be available for all users`, 'success');
       } else {
         throw new Error(response.message || `Failed to add ${name}`);
       }
@@ -324,6 +330,25 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     } else if (field === 'location') {
       setShowCustomLocation(false);
       setCustomLocation('');
+    }
+  };
+
+  // Add keyboard support for custom inputs
+  const handleCustomKeyPress = (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    type: 'brands' | 'products' | 'locations',
+    value: string
+  ) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (value.trim()) {
+        handleCustomSubmit(type, value.trim());
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      if (type === 'brands') handleCustomCancel('brand');
+      else if (type === 'products') handleCustomCancel('product');
+      else if (type === 'locations') handleCustomCancel('location');
     }
   };
 
@@ -505,46 +530,72 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         </div>
       </div>
 
-      {/* Brand, Product, Location Section */}
+      {/* Brand, Product, Location Section - Enhanced for both Admin and Sales */}
       <div className="border-t pt-4 mt-6">
-        <h3 className="text-lg font-medium text-gray-800 mb-4">Business Details</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-medium text-gray-800">Business Details</h3>
+          {!isAdmin && (
+            <div className="text-sm text-gray-500">
+              💡 Can't find what you need? Add new items directly!
+            </div>
+          )}
+        </div>
+        
         {loadingOptions && (
           <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-blue-700 text-sm">Loading business details options...</p>
           </div>
         )}
+        
+        {/* Show success message when options are loaded */}
+        {!loadingOptions && (brands.length > 0 || products.length > 0 || locations.length > 0) && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-700 text-sm">
+              ✅ Loaded {brands.length} brands, {products.length} products, and {locations.length} locations from management data
+            </p>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Brand Field */}
           <div>
             <label htmlFor="brand" className="block text-sm font-medium text-gray-700 mb-1">
               Brand
+              {!isAdmin && <span className="text-xs text-gray-500 ml-1">(+ Add new)</span>}
             </label>
             {showCustomBrand ? (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={customBrand}
-                  onChange={(e) => setCustomBrand(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Enter new brand"
-                  disabled={isLoading || saving}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleCustomSubmit('brands', customBrand)}
-                  className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                  disabled={isLoading || saving || !customBrand.trim()}
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCustomCancel('brand')}
-                  className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  disabled={isLoading || saving}
-                >
-                  Cancel
-                </button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customBrand}
+                    onChange={(e) => setCustomBrand(e.target.value)}
+                    onKeyDown={(e) => handleCustomKeyPress(e, 'brands', customBrand)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Enter new brand"
+                    disabled={isLoading || saving}
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCustomSubmit('brands', customBrand)}
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                    disabled={isLoading || saving || !customBrand.trim()}
+                  >
+                    Add & Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCustomCancel('brand')}
+                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    disabled={isLoading || saving}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">Press Enter to add, Escape to cancel</p>
               </div>
             ) : (
               <select
@@ -560,7 +611,9 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                     {brand.name}
                   </option>
                 ))}
-                <option value="custom">+ Add New Brand</option>
+                <option value="custom" className="bg-blue-50 text-blue-700 font-medium">
+                  ➕ Add New Brand
+                </option>
               </select>
             )}
           </div>
@@ -569,33 +622,41 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           <div>
             <label htmlFor="product" className="block text-sm font-medium text-gray-700 mb-1">
               Product
+              {!isAdmin && <span className="text-xs text-gray-500 ml-1">(+ Add new)</span>}
             </label>
             {showCustomProduct ? (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={customProduct}
-                  onChange={(e) => setCustomProduct(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Enter new product"
-                  disabled={isLoading || saving}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleCustomSubmit('products', customProduct)}
-                  className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                  disabled={isLoading || saving || !customProduct.trim()}
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCustomCancel('product')}
-                  className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  disabled={isLoading || saving}
-                >
-                  Cancel
-                </button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customProduct}
+                    onChange={(e) => setCustomProduct(e.target.value)}
+                    onKeyDown={(e) => handleCustomKeyPress(e, 'products', customProduct)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Enter new product"
+                    disabled={isLoading || saving}
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCustomSubmit('products', customProduct)}
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                    disabled={isLoading || saving || !customProduct.trim()}
+                  >
+                    Add & Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCustomCancel('product')}
+                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    disabled={isLoading || saving}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">Press Enter to add, Escape to cancel</p>
               </div>
             ) : (
               <select
@@ -611,7 +672,9 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                     {product.name}
                   </option>
                 ))}
-                <option value="custom">+ Add New Product</option>
+                <option value="custom" className="bg-blue-50 text-blue-700 font-medium">
+                  ➕ Add New Product
+                </option>
               </select>
             )}
           </div>
@@ -620,33 +683,41 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           <div>
             <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
               Location
+              {!isAdmin && <span className="text-xs text-gray-500 ml-1">(+ Add new)</span>}
             </label>
             {showCustomLocation ? (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={customLocation}
-                  onChange={(e) => setCustomLocation(e.target.value)}
-                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                  placeholder="Enter new location"
-                  disabled={isLoading || saving}
-                />
-                <button
-                  type="button"
-                  onClick={() => handleCustomSubmit('locations', customLocation)}
-                  className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                  disabled={isLoading || saving || !customLocation.trim()}
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCustomCancel('location')}
-                  className="px-3 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-                  disabled={isLoading || saving}
-                >
-                  Cancel
-                </button>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={customLocation}
+                    onChange={(e) => setCustomLocation(e.target.value)}
+                    onKeyDown={(e) => handleCustomKeyPress(e, 'locations', customLocation)}
+                    className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Enter new location"
+                    disabled={isLoading || saving}
+                    autoFocus
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCustomSubmit('locations', customLocation)}
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                    disabled={isLoading || saving || !customLocation.trim()}
+                  >
+                    Add & Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCustomCancel('location')}
+                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    disabled={isLoading || saving}
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">Press Enter to add, Escape to cancel</p>
               </div>
             ) : (
               <select
@@ -662,11 +733,23 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                     {location.name}
                   </option>
                 ))}
-                <option value="custom">+ Add New Location</option>
+                <option value="custom" className="bg-blue-50 text-blue-700 font-medium">
+                  ➕ Add New Location
+                </option>
               </select>
             )}
           </div>
         </div>
+        
+        {/* Show helpful message for sales users */}
+        {!isAdmin && !loadingOptions && (
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-700 text-sm">
+              <strong>💡 Pro tip:</strong> When you add new brands, products, or locations here, they'll automatically be saved 
+              to the database and become available for all users in future forms!
+            </p>
+          </div>
+        )}
       </div>
 
       <div>
@@ -681,6 +764,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           rows={4}
           className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
           disabled={isLoading || saving}
+          placeholder="Add any additional notes about this lead..."
         />
       </div>
 
