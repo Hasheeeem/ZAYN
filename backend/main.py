@@ -154,8 +154,10 @@ class TargetResponse(BaseModel):
         populate_by_name = True
 
 class LeadCreate(BaseModel):
-    first_name: str = Field(alias="firstName", min_length=1, max_length=100)
-    last_name: str = Field(alias="lastName", max_length=100, default="")
+    company_representative_name: Optional[str] = Field(None, alias="companyRepresentativeName", max_length=100)
+    company_name: Optional[str] = Field(None, alias="companyName", max_length=255)
+    price_paid: Optional[float] = Field(None, alias="pricePaid", ge=0)
+    invoice_billed: Optional[float] = Field(None, alias="invoiceBilled", ge=0)
     email: EmailStr
     phone: Optional[str] = Field(None, max_length=20)
     domain: str = Field(..., min_length=1, max_length=255)
@@ -164,6 +166,9 @@ class LeadCreate(BaseModel):
     status: str = Field(default="new", pattern="^(new|contacted|qualified|converted|lost)$")
     source: str = Field(default="website", pattern="^(website|referral|call|other)$")
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
+    brand: Optional[str] = Field(None, max_length=100)
+    product: Optional[str] = Field(None, max_length=100)
+    location: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = Field(None, max_length=1000)
 
     class Config:
