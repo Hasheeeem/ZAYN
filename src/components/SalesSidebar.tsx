@@ -38,7 +38,7 @@ const SalesSidebar: React.FC<SalesSidebarProps> = ({ activePage, onNavigate }) =
           Z
         </div>
         <div>
-          <div className="text-xl font-semibold">ZownLead</div>
+          <div className="text-xl font-semibold">ZaynLead</div>
           <div className="text-xs text-gray-300">Sales Portal</div>
         </div>
       </div>

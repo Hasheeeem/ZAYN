@@ -37,7 +37,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activePage, onNavigate }) => {
         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center font-bold text-lg">
           Z
         </div>
-        <div className="text-xl font-semibold">ZownLead</div>
+        <div className="text-xl font-semibold">ZaynLead</div>
       </div>
       
       <nav className="py-5 flex-1 overflow-y-auto">
