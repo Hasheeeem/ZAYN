@@ -154,10 +154,8 @@ class TargetResponse(BaseModel):
         populate_by_name = True
 
 class LeadCreate(BaseModel):
-    company_representative_name: Optional[str] = Field(None, alias="companyRepresentativeName", max_length=100)
-    company_name: Optional[str] = Field(None, alias="companyName", max_length=255)
-    price_paid: Optional[float] = Field(None, alias="pricePaid", ge=0)
-    invoice_billed: Optional[float] = Field(None, alias="invoiceBilled", ge=0)
+    first_name: str = Field(alias="firstName", min_length=1, max_length=100)
+    last_name: str = Field(alias="lastName", max_length=100, default="")
     email: EmailStr
     phone: Optional[str] = Field(None, max_length=20)
     domain: str = Field(..., min_length=1, max_length=255)
@@ -166,9 +164,6 @@ class LeadCreate(BaseModel):
     status: str = Field(default="new", pattern="^(new|contacted|qualified|converted|lost)$")
     source: str = Field(default="website", pattern="^(website|referral|call|other)$")
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
-    brand: Optional[str] = Field(None, max_length=100)
-    product: Optional[str] = Field(None, max_length=100)
-    location: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = Field(None, max_length=1000)
 
     class Config:
@@ -789,7 +784,570 @@ async def logout(current_user: dict = Depends(get_current_user)):
     """Logout user"""
     return {"success": True, "message": "Logged out successfully"}
 
+# User endpoints (Admin only)
+@app.get("/users")
+async def get_users(current_user: dict = Depends(get_admin_user)):
+    """Get all users (Admin only)"""
+    users = await users_collection.find({}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_user_response(user) for user in users]
+    }
 
+@app.post("/users")
+async def create_user(user_data: UserCreate, current_user: dict = Depends(get_admin_user)):
+    """Create new user (Admin only)"""
+    try:
+        user_dict = {
+            "name": user_data.name,
+            "email": user_data.email.lower(),
+            "password": hash_password(user_data.password),
+            "role": user_data.role,
+            "status": "active",
+            "phone_number": user_data.phone_number,
+            "created_at": datetime.utcnow().isoformat(),
+            "last_login": None,
+            "created_by": str(current_user["_id"])
+        }
+        
+        result = await users_collection.insert_one(user_dict)
+        user_dict["_id"] = result.inserted_id
+        
+        return {
+            "success": True,
+            "data": format_user_response(user_dict),
+            "message": "User created successfully"
+        }
+    except DuplicateKeyError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already exists"
+        )
+    
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)):
+    """
+    Delete a sales user by ID (Admin only). Cannot delete self or another admin.
+    """
+    try:
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+
+        # Prevent deleting your own account
+        if str(current_user["_id"]) == user_id:
+            raise HTTPException(status_code=400, detail="Cannot delete your own account")
+        
+        # Fetch the user to check their role
+        user_to_delete = await users_collection.find_one({"_id": ObjectId(user_id)})
+
+        if not user_to_delete:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if user_to_delete.get("role") != "sales":
+            raise HTTPException(status_code=403, detail="Only sales users can be deleted")
+
+        # Proceed with deletion
+        result = await users_collection.delete_one({"_id": ObjectId(user_id)})
+
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="User not found during deletion")
+
+        return {"success": True, "message": "Sales user deleted successfully"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete user")
+
+@app.put("/users/{user_id}")
+async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = Depends(get_admin_user)):
+    try:
+        if not ObjectId.is_valid(user_id):
+            raise HTTPException(status_code=400, detail="Invalid user ID")
+        
+        update_data = {}
+
+        if user_data.name is not None:
+            update_data["name"] = user_data.name
+
+        if user_data.email is not None:
+            email = user_data.email.lower()
+            # Check if email already exists for other users
+            existing_user = await users_collection.find_one({
+                "email": email,
+                "_id": {"$ne": ObjectId(user_id)}
+            })
+            if existing_user:
+                raise HTTPException(status_code=400, detail="Email already exists")
+            update_data["email"] = email
+
+        if user_data.phone_number is not None:
+            update_data["phone_number"] = user_data.phone_number
+
+        if user_data.role is not None:
+            update_data["role"] = user_data.role
+
+        if user_data.password is not None:
+            update_data["password"] = hash_password(user_data.password)
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No data to update")
+
+        update_data["updated_at"] = datetime.utcnow()
+
+        result = await users_collection.update_one(
+            {"_id": ObjectId(user_id)},
+            {"$set": update_data}
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        updated_user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        user_response = serialize_doc(updated_user)
+        user_response.pop("password", None)
+
+        return {"success": True, "data": user_response}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update user")
+
+
+@app.get("/salespeople")
+async def get_salespeople(current_user: dict = Depends(get_current_user)):
+    """Get sales team members"""
+    salespeople = await users_collection.find({"role": {"$in": ["sales", "admin"]}}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_user_response(user) for user in salespeople]
+    }
+
+# Target endpoints
+@app.get("/targets")
+async def get_all_targets(current_user: dict = Depends(get_admin_user)):
+    """Get all user targets (Admin only)"""
+    targets = await targets_collection.find({}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_target_response(target) for target in targets]
+    }
+
+@app.get("/targets/{user_id}")
+async def get_user_targets(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get targets for a specific user"""
+    # Check if current user can access these targets
+    if current_user.get("role") != "admin" and str(current_user["_id"]) != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access your own targets"
+        )
+    
+    target = await targets_collection.find_one({"user_id": user_id})
+    if not target:
+        # Return default empty targets
+        return {
+            "success": True,
+            "data": {
+                "userId": user_id,
+                "salesTarget": 0,
+                "invoiceTarget": 0,
+                "salesAchieved": 0,
+                "invoiceAchieved": 0,
+                "period": "monthly"
+            }
+        }
+    
+    return {
+        "success": True,
+        "data": format_target_response(target)
+    }
+
+@app.post("/targets")
+async def create_or_update_targets(target_data: TargetCreate, current_user: dict = Depends(get_admin_user)):
+    """Create or update user targets (Admin only)"""
+    try:
+        # Verify the user exists
+        user = await users_collection.find_one({"_id": ObjectId(target_data.user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Calculate current achievements
+        sales_achieved, invoice_achieved = await calculate_user_achievements(target_data.user_id)
+        
+        target_dict = {
+            "user_id": target_data.user_id,
+            "sales_target": target_data.sales_target,
+            "invoice_target": target_data.invoice_target,
+            "sales_achieved": sales_achieved,
+            "invoice_achieved": invoice_achieved,
+            "period": target_data.period,
+            "updated_at": datetime.utcnow().isoformat(),
+            "updated_by": str(current_user["_id"])
+        }
+        
+        # Check if target already exists
+        existing_target = await targets_collection.find_one({"user_id": target_data.user_id})
+        
+        if existing_target:
+            # Update existing target
+            result = await targets_collection.update_one(
+                {"user_id": target_data.user_id},
+                {"$set": target_dict}
+            )
+            target_dict["_id"] = existing_target["_id"]
+            target_dict["created_at"] = existing_target["created_at"]
+        else:
+            # Create new target
+            target_dict["created_at"] = datetime.utcnow().isoformat()
+            result = await targets_collection.insert_one(target_dict)
+            target_dict["_id"] = result.inserted_id
+        
+        return {
+            "success": True,
+            "data": format_target_response(target_dict),
+            "message": "Targets updated successfully"
+        }
+        
+    except Exception as e:
+        print(f"Error creating/updating targets: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update targets"
+        )
+
+@app.put("/targets/{user_id}")
+async def update_targets(user_id: str, target_data: TargetUpdate, current_user: dict = Depends(get_admin_user)):
+    """Update user targets (Admin only)"""
+    try:
+        # Verify the user exists
+        user = await users_collection.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Get existing target
+        existing_target = await targets_collection.find_one({"user_id": user_id})
+        if not existing_target:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target not found for this user"
+            )
+        
+        # Calculate current achievements
+        sales_achieved, invoice_achieved = await calculate_user_achievements(user_id)
+        
+        update_data = {
+            "sales_achieved": sales_achieved,
+            "invoice_achieved": invoice_achieved,
+            "updated_at": datetime.utcnow().isoformat(),
+            "updated_by": str(current_user["_id"])
+        }
+        
+        # Update only provided fields
+        if target_data.sales_target is not None:
+            update_data["sales_target"] = target_data.sales_target
+        if target_data.invoice_target is not None:
+            update_data["invoice_target"] = target_data.invoice_target
+        if target_data.period is not None:
+            update_data["period"] = target_data.period
+        
+        result = await targets_collection.update_one(
+            {"user_id": user_id},
+            {"$set": update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Target not found"
+            )
+        
+        # Get updated target
+        updated_target = await targets_collection.find_one({"user_id": user_id})
+        
+        return {
+            "success": True,
+            "data": format_target_response(updated_target),
+            "message": "Targets updated successfully"
+        }
+        
+    except Exception as e:
+        print(f"Error updating targets: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update targets"
+        )
+
+@app.delete("/targets/{user_id}")
+async def delete_targets(user_id: str, current_user: dict = Depends(get_admin_user)):
+    """Delete user targets (Admin only)"""
+    result = await targets_collection.delete_one({"user_id": user_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Target not found"
+        )
+    
+    return {
+        "success": True,
+        "message": "Targets deleted successfully"
+    }
+
+# Calendar Events endpoints
+@app.get("/calendar/events")
+async def get_calendar_events(current_user: dict = Depends(get_current_user)):
+    """Get calendar events for current user"""
+    events = await calendar_events_collection.find({"user_id": str(current_user["_id"])}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_calendar_event_response(event) for event in events]
+    }
+
+@app.post("/calendar/events")
+async def create_calendar_event(event_data: CalendarEventCreate, current_user: dict = Depends(get_current_user)):
+    """Create new calendar event"""
+    event_dict = {
+        "title": event_data.title,
+        "type": event_data.type,
+        "date": event_data.date,
+        "time": event_data.time,
+        "duration": event_data.duration,
+        "description": event_data.description,
+        "contact_name": event_data.contact_name,
+        "contact_email": event_data.contact_email,
+        "contact_phone": event_data.contact_phone,
+        "location": event_data.location,
+        "status": event_data.status,
+        "priority": event_data.priority,
+        "user_id": str(current_user["_id"]),
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+        "created_by": str(current_user["_id"])
+    }
+    
+    result = await calendar_events_collection.insert_one(event_dict)
+    event_dict["_id"] = result.inserted_id
+    
+    return {
+        "success": True,
+        "data": format_calendar_event_response(event_dict),
+        "message": "Calendar event created successfully"
+    }
+
+@app.put("/calendar/events/{event_id}")
+async def update_calendar_event(event_id: str, event_data: CalendarEventUpdate, current_user: dict = Depends(get_current_user)):
+    """Update calendar event"""
+    try:
+        object_id = ObjectId(event_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid event ID")
+    
+    # Check if event exists and user has permission
+    event = await calendar_events_collection.find_one({"_id": object_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if user owns the event
+    if event.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own events"
+        )
+    
+    update_data = {k: v for k, v in event_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
+    
+    # Convert camelCase to snake_case for database
+    field_mapping = {
+        "contactName": "contact_name",
+        "contactEmail": "contact_email",
+        "contactPhone": "contact_phone"
+    }
+    
+    db_update_data = {}
+    for key, value in update_data.items():
+        db_key = field_mapping.get(key, key)
+        db_update_data[db_key] = value
+    
+    if db_update_data:
+        db_update_data["updated_at"] = datetime.utcnow().isoformat()
+        db_update_data["updated_by"] = str(current_user["_id"])
+        
+        result = await calendar_events_collection.update_one(
+            {"_id": object_id},
+            {"$set": db_update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Event not found")
+    
+    updated_event = await calendar_events_collection.find_one({"_id": object_id})
+    
+    return {
+        "success": True,
+        "data": format_calendar_event_response(updated_event),
+        "message": "Event updated successfully"
+    }
+
+@app.delete("/calendar/events/{event_id}")
+async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete calendar event"""
+    try:
+        object_id = ObjectId(event_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid event ID")
+    
+    # Check if event exists and user has permission
+    event = await calendar_events_collection.find_one({"_id": object_id})
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    # Check if user owns the event
+    if event.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own events"
+        )
+    
+    result = await calendar_events_collection.delete_one({"_id": object_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    
+    return {
+        "success": True,
+        "message": "Event deleted successfully"
+    }
+
+# Tasks endpoints
+@app.get("/tasks")
+async def get_tasks(current_user: dict = Depends(get_current_user)):
+    """Get tasks for current user"""
+    tasks = await tasks_collection.find({"user_id": str(current_user["_id"])}).to_list(None)
+    return {
+        "success": True,
+        "data": [format_task_response(task) for task in tasks]
+    }
+
+@app.post("/tasks")
+async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_current_user)):
+    """Create new task"""
+    task_dict = {
+        "title": task_data.title,
+        "description": task_data.description,
+        "due_date": task_data.due_date,
+        "priority": task_data.priority,
+        "status": task_data.status,
+        "category": task_data.category,
+        "assigned_to": task_data.assigned_to,
+        "related_lead": task_data.related_lead,
+        "user_id": str(current_user["_id"]),
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat(),
+        "created_by": str(current_user["_id"])
+    }
+    
+    result = await tasks_collection.insert_one(task_dict)
+    task_dict["_id"] = result.inserted_id
+    
+    return {
+        "success": True,
+        "data": format_task_response(task_dict),
+        "message": "Task created successfully"
+    }
+
+@app.put("/tasks/{task_id}")
+async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = Depends(get_current_user)):
+    """Update task"""
+    try:
+        object_id = ObjectId(task_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+    
+    # Check if task exists and user has permission
+    task = await tasks_collection.find_one({"_id": object_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user owns the task
+    if task.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own tasks"
+        )
+    
+    update_data = {k: v for k, v in task_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
+    
+    # Convert camelCase to snake_case for database
+    field_mapping = {
+        "dueDate": "due_date",
+        "assignedTo": "assigned_to",
+        "relatedLead": "related_lead"
+    }
+    
+    db_update_data = {}
+    for key, value in update_data.items():
+        db_key = field_mapping.get(key, key)
+        db_update_data[db_key] = value
+    
+    if db_update_data:
+        db_update_data["updated_at"] = datetime.utcnow().isoformat()
+        db_update_data["updated_by"] = str(current_user["_id"])
+        
+        result = await tasks_collection.update_one(
+            {"_id": object_id},
+            {"$set": db_update_data}
+        )
+        
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Task not found")
+    
+    updated_task = await tasks_collection.find_one({"_id": object_id})
+    
+    return {
+        "success": True,
+        "data": format_task_response(updated_task),
+        "message": "Task updated successfully"
+    }
+
+@app.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete task"""
+    try:
+        object_id = ObjectId(task_id)
+    except:
+        raise HTTPException(status_code=400, detail="Invalid task ID")
+    
+    # Check if task exists and user has permission
+    task = await tasks_collection.find_one({"_id": object_id})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Check if user owns the task
+    if task.get("user_id") != str(current_user["_id"]):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own tasks"
+        )
+    
+    result = await tasks_collection.delete_one({"_id": object_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return {
+        "success": True,
+        "message": "Task deleted successfully"
+    }
 
 # Lead endpoints with role-based access control
 @app.get("/leads")
