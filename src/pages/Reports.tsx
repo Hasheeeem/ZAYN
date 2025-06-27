@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
-import { Download, FileText, Filter } from 'lucide-react';
+import { Download, FileText, Filter, Users, TrendingUp, DollarSign, Target } from 'lucide-react';
 import StatCard from '../components/StatCard';
 import ActionButton from '../components/ActionButton';
 import SearchFilter from '../components/SearchFilter';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer } from 'recharts';
 import { useData } from '../context/DataContext';
 
 const Reports: React.FC = () => {
@@ -28,42 +27,51 @@ const Reports: React.FC = () => {
     return matchesDate && matchesSource && matchesSales;
   });
 
-  // Calculate metrics
+  // Calculate metrics from real data
   const totalLeads = filteredLeads.length;
   const convertedLeads = filteredLeads.filter(l => l.status === 'converted').length;
   const conversionRate = totalLeads > 0 ? ((convertedLeads / totalLeads) * 100).toFixed(1) : '0';
-  
-  // Lead status distribution
-  const statusData = Object.entries(
-    filteredLeads.reduce((acc, lead) => {
-      acc[lead.status] = (acc[lead.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>)
-  ).map(([name, value]) => ({ name, value }));
+  const totalRevenue = filteredLeads
+    .filter(l => l.status === 'converted')
+    .reduce((sum, lead) => sum + (lead.pricePaid || lead.price || 0), 0);
+  const avgDealSize = convertedLeads > 0 ? (totalRevenue / convertedLeads).toFixed(0) : '0';
 
-  // Source distribution
-  const sourceData = Object.entries(
-    filteredLeads.reduce((acc, lead) => {
-      acc[lead.source] = (acc[lead.source] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>)
-  ).map(([name, value]) => ({ name, value }));
+  // Lead status distribution from real data
+  const statusData = [
+    { name: 'New', value: filteredLeads.filter(l => l.status === 'new').length },
+    { name: 'Contacted', value: filteredLeads.filter(l => l.status === 'contacted').length },
+    { name: 'Qualified', value: filteredLeads.filter(l => l.status === 'qualified').length },
+    { name: 'Converted', value: filteredLeads.filter(l => l.status === 'converted').length },
+    { name: 'Lost', value: filteredLeads.filter(l => l.status === 'lost').length }
+  ];
 
-  // Team performance
-  const teamData = salespeople.map(person => ({
-    name: person.name,
-    leads: filteredLeads.filter(l => l.assignedTo === person.id.toString()).length,
-    converted: filteredLeads.filter(l => 
-      l.assignedTo === person.id.toString() && l.status === 'converted'
-    ).length
-  }));
+  // Source distribution from real data
+  const sourceData = [
+    { name: 'Website', value: filteredLeads.filter(l => l.source === 'website').length },
+    { name: 'Referral', value: filteredLeads.filter(l => l.source === 'referral').length },
+    { name: 'Call', value: filteredLeads.filter(l => l.source === 'call').length },
+    { name: 'Other', value: filteredLeads.filter(l => l.source === 'other').length }
+  ];
+
+  // Team performance from real data
+  const teamData = salespeople.map(person => {
+    const personLeads = filteredLeads.filter(l => l.assignedTo === person.id.toString());
+    const personConverted = personLeads.filter(l => l.status === 'converted');
+    const personRevenue = personConverted.reduce((sum, lead) => sum + (lead.pricePaid || lead.price || 0), 0);
+    
+    return {
+      name: person.name,
+      leads: personLeads.length,
+      converted: personConverted.length,
+      revenue: personRevenue,
+      conversionRate: personLeads.length > 0 ? ((personConverted.length / personLeads.length) * 100).toFixed(1) : '0'
+    };
+  });
 
   const exportData = (format: 'csv' | 'pdf') => {
     // Implementation would go here
     console.log(`Exporting as ${format}`);
   };
-
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
   return (
     <div className="space-y-6">
@@ -85,6 +93,7 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
+      {/* Filters */}
       <div className="bg-white rounded-xl shadow-md p-6">
         <div className="flex flex-wrap gap-4 items-end">
           <div className="flex-1 min-w-[200px]">
@@ -115,7 +124,7 @@ const Reports: React.FC = () => {
                 options: [
                   { value: 'website', label: 'Website' },
                   { value: 'referral', label: 'Referral' },
-                  { value: 'ads', label: 'Ads' },
+                  { value: 'call', label: 'Call' },
                   { value: 'other', label: 'Other' }
                 ]
               },
@@ -133,90 +142,125 @@ const Reports: React.FC = () => {
         </div>
       </div>
 
+      {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title="Total Leads"
           value={totalLeads}
-          icon={<Filter size={24} />}
+          icon={<Users size={24} />}
           color="blue"
         />
         <StatCard
           title="Converted Leads"
           value={convertedLeads}
-          icon={<Filter size={24} />}
+          icon={<Target size={24} />}
           color="green"
         />
         <StatCard
           title="Conversion Rate"
           value={`${conversionRate}%`}
-          icon={<Filter size={24} />}
+          icon={<TrendingUp size={24} />}
           color="purple"
         />
         <StatCard
-          title="Average Deal Size"
-          value="$2,450"
-          icon={<Filter size={24} />}
+          title="Total Revenue"
+          value={`$${totalRevenue.toLocaleString()}`}
+          icon={<DollarSign size={24} />}
           color="yellow"
         />
       </div>
 
+      {/* Data Tables */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Lead Status Breakdown */}
         <div className="bg-white rounded-xl shadow-md p-6">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Lead Status Distribution</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="space-y-3">
+            {statusData.map((status, index) => (
+              <div key={index} className="flex justify-between items-center p-3 rounded-lg hover:bg-gray-50">
+                <span className="font-medium text-gray-700">{status.name}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">
+                    {totalLeads > 0 ? Math.round((status.value / totalLeads) * 100) : 0}%
+                  </span>
+                  <span className="font-semibold text-indigo-600">{status.value}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
+        {/* Source Distribution */}
         <div className="bg-white rounded-xl shadow-md p-6">
           <h3 className="text-lg font-semibold text-gray-700 mb-4">Leads by Source</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={sourceData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="value" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="space-y-3">
+            {sourceData.map((source, index) => (
+              <div key={index} className="flex justify-between items-center p-3 rounded-lg hover:bg-gray-50">
+                <span className="font-medium text-gray-700">{source.name}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500">
+                    {totalLeads > 0 ? Math.round((source.value / totalLeads) * 100) : 0}%
+                  </span>
+                  <span className="font-semibold text-indigo-600">{source.value}</span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
+      </div>
 
-        <div className="bg-white rounded-xl shadow-md p-6 lg:col-span-2">
-          <h3 className="text-lg font-semibold text-gray-700 mb-4">Team Performance</h3>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={teamData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="leads" fill="#8884d8" name="Total Leads" />
-                <Bar dataKey="converted" fill="#82ca9d" name="Converted" />
-              </BarChart>
-            </ResponsiveContainer>
+      {/* Team Performance */}
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <h3 className="text-lg font-semibold text-gray-700 mb-4">Team Performance</h3>
+        {teamData.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-4">Salesperson</th>
+                  <th className="text-right py-3 px-4">Total Leads</th>
+                  <th className="text-right py-3 px-4">Converted</th>
+                  <th className="text-right py-3 px-4">Conversion Rate</th>
+                  <th className="text-right py-3 px-4">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamData.map((person, index) => (
+                  <tr key={index} className="border-b hover:bg-gray-50">
+                    <td className="py-3 px-4 font-medium">{person.name}</td>
+                    <td className="py-3 px-4 text-right">{person.leads}</td>
+                    <td className="py-3 px-4 text-right">{person.converted}</td>
+                    <td className="py-3 px-4 text-right">{person.conversionRate}%</td>
+                    <td className="py-3 px-4 text-right">${person.revenue.toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <Users className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900">No salespeople found</h3>
+            <p className="mt-1 text-sm text-gray-500">Add salespeople to see performance data.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Summary */}
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Summary</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-indigo-600">{totalLeads}</div>
+            <div className="text-sm text-gray-600">Total Leads in Period</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{conversionRate}%</div>
+            <div className="text-sm text-gray-600">Overall Conversion Rate</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">${avgDealSize}</div>
+            <div className="text-sm text-gray-600">Average Deal Size</div>
           </div>
         </div>
       </div>
