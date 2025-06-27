@@ -60,15 +60,15 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { showNotification } = useNotification();
   const { authState } = useAuth();
 
-  // Calculate user achievements based ONLY on converted leads
+  // Clean calculateUserAchievements function - uses your fields
   const calculateUserAchievements = (userId: string, allLeads: Lead[]) => {
     // Only count leads that are assigned to the user AND have status 'converted'
     const userConvertedLeads = allLeads.filter(lead => 
       lead.assignedTo === userId && lead.status === 'converted'
     );
     
-    const salesAchieved = userConvertedLeads.reduce((sum, lead) => sum + (lead.pricePaid || lead.price || 0), 0);
-    const invoiceAchieved = userConvertedLeads.reduce((sum, lead) => sum + (lead.invoiceBilled || lead.clicks || 0), 0);
+    const salesAchieved = userConvertedLeads.reduce((sum, lead) => sum + (lead.pricePaid || 0), 0);
+    const invoiceAchieved = userConvertedLeads.reduce((sum, lead) => sum + (lead.invoiceBilled || 0), 0);
     
     return { salesAchieved, invoiceAchieved };
   };
@@ -269,24 +269,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [authState.isAuthenticated, authState.user?.role]);
 
+  // Clean addLead function - ONLY your fields
   const addLead = async (leadData: Omit<Lead, 'id'>) => {
     try {
-      // Transform the data to match backend expectations
+      // Send data with your clean field structure
       const backendData = {
-        firstName: leadData.firstName,
-        lastName: leadData.lastName || '',
+        companyRepresentativeName: leadData.companyRepresentativeName,
+        companyName: leadData.companyName,
         email: leadData.email,
         phone: leadData.phone || null,
-        domain: leadData.domain,
-        price: Number(leadData.price) || 0,
-        clicks: Number(leadData.invoiceBilled) || 0, // Map invoiceBilled to clicks
-        status: leadData.status,
         source: leadData.source,
+        pricePaid: Number(leadData.pricePaid) || 0,
+        invoiceBilled: Number(leadData.invoiceBilled) || 0,
+        status: leadData.status,
         assignedTo: leadData.assignedTo || null,
+        brand: leadData.brand || null,
+        product: leadData.product || null,
+        location: leadData.location || null,
         notes: leadData.notes || null
       };
 
-      console.log('Sending lead data to backend:', backendData);
+      console.log('Sending clean lead data to backend:', backendData);
       
       const response = await apiService.createLead(backendData);
       if (response.success) {
@@ -322,20 +325,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Clean updateLead function - ONLY your fields
   const updateLead = async (updatedLead: Lead) => {
     try {
-      // Transform the data to match backend expectations
+      // Send data with your clean field structure
       const backendData = {
-        firstName: updatedLead.firstName,
-        lastName: updatedLead.lastName || '',
+        companyRepresentativeName: updatedLead.companyRepresentativeName,
+        companyName: updatedLead.companyName,
         email: updatedLead.email,
         phone: updatedLead.phone || null,
-        domain: updatedLead.domain,
-        price: Number(updatedLead.price) || 0,
-        clicks: Number(updatedLead.invoiceBilled) || 0, // Map invoiceBilled to clicks
-        status: updatedLead.status,
         source: updatedLead.source,
+        pricePaid: Number(updatedLead.pricePaid) || 0,
+        invoiceBilled: Number(updatedLead.invoiceBilled) || 0,
+        status: updatedLead.status,
         assignedTo: updatedLead.assignedTo || null,
+        brand: updatedLead.brand || null,
+        product: updatedLead.product || null,
+        location: updatedLead.location || null,
         notes: updatedLead.notes || null
       };
 
@@ -479,12 +485,13 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Clean filterLeads function - uses your fields
   const filterLeads = (searchTerm: string, status: string): Lead[] => {
     return leads.filter(lead => {
       const matchesSearch = searchTerm === '' || 
-        lead.domain.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.lastName.toLowerCase().includes(searchTerm.toLowerCase());
+        lead.companyName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.companyRepresentativeName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        lead.email.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesStatus = status === '' || lead.status === status;
       

@@ -1,6 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = 'http://localhost:8000';
 
-export const apiConfig = {
+const apiConfig = {
   baseURL: API_BASE_URL,
   endpoints: {
     auth: {
@@ -25,18 +25,34 @@ export const apiConfig = {
     salespeople: {
       list: '/salespeople'
     },
+    targets: {
+      list: '/targets',
+      create: '/targets',
+      get: (userId: string) => `/targets/${userId}`,
+      update: (userId: string) => `/targets/${userId}`,
+      delete: (userId: string) => `/targets/${userId}`
+    },
+    calendar: {
+      events: '/calendar/events',
+      createEvent: '/calendar/events',
+      updateEvent: (id: string) => `/calendar/events/${id}`,
+      deleteEvent: (id: string) => `/calendar/events/${id}`
+    },
+    tasks: {
+      list: '/tasks',
+      create: '/tasks',
+      update: (id: string) => `/tasks/${id}`,
+      delete: (id: string) => `/tasks/${id}`
+    },
     management: {
-      brands: '/management/brands',
-      products: '/management/products',
-      locations: '/management/locations',
-      statuses: '/management/statuses',
-      sources: '/management/sources',
-      ownership: '/management/ownership'
+      get: (type: string) => `/management/${type}`,
+      create: (type: string) => `/management/${type}`,
+      update: (type: string, id: string) => `/management/${type}/${id}`,
+      delete: (type: string, id: string) => `/management/${type}/${id}`
     }
   }
 };
 
-// Test API connection
 export const testApiConnection = async (): Promise<boolean> => {
   try {
     const response = await fetch(`${API_BASE_URL}/health`);

@@ -99,7 +99,7 @@ class ApiService {
     console.log('Attempting login with:', { email, password: '***' });
     
     const response = await this.request<{ access_token: string; user: any }>(
-      apiConfig.endpoints.auth.login,
+      '/auth/login',
       {
         method: 'POST',
         body: JSON.stringify({ email, password }),
@@ -115,7 +115,7 @@ class ApiService {
 
   async logout() {
     try {
-      await this.request(apiConfig.endpoints.auth.logout, {
+      await this.request('/auth/logout', {
         method: 'POST',
       });
     } finally {
@@ -124,45 +124,83 @@ class ApiService {
   }
 
   async getCurrentUser() {
-    return this.request(apiConfig.endpoints.auth.me);
+    return this.request('/auth/me');
   }
 
-  // Lead methods
+  // Clean Lead methods - ONLY your fields
   async getLeads(params?: Record<string, any>) {
     const queryString = params ? new URLSearchParams(params).toString() : '';
-    const endpoint = queryString ? `${apiConfig.endpoints.leads.list}?${queryString}` : apiConfig.endpoints.leads.list;
+    const endpoint = queryString ? `/leads?${queryString}` : '/leads';
     return this.request(endpoint);
   }
 
   async createLead(leadData: any) {
-    return this.request(apiConfig.endpoints.leads.create, {
+    // Ensure we're sending clean data structure
+    const cleanLeadData = {
+      companyRepresentativeName: leadData.companyRepresentativeName,
+      companyName: leadData.companyName,
+      email: leadData.email,
+      phone: leadData.phone || null,
+      source: leadData.source,
+      pricePaid: Number(leadData.pricePaid) || 0,
+      invoiceBilled: Number(leadData.invoiceBilled) || 0,
+      status: leadData.status,
+      assignedTo: leadData.assignedTo || null,
+      brand: leadData.brand || null,
+      product: leadData.product || null,
+      location: leadData.location || null,
+      notes: leadData.notes || null
+    };
+
+    console.log('Sending clean lead data to API:', cleanLeadData);
+    
+    return this.request('/leads', {
       method: 'POST',
-      body: JSON.stringify(leadData),
+      body: JSON.stringify(cleanLeadData),
     });
   }
 
   async updateLead(id: string, leadData: any) {
-    return this.request(apiConfig.endpoints.leads.update(id), {
+    // Ensure we're sending clean data structure
+    const cleanLeadData = {
+      companyRepresentativeName: leadData.companyRepresentativeName,
+      companyName: leadData.companyName,
+      email: leadData.email,
+      phone: leadData.phone || null,
+      source: leadData.source,
+      pricePaid: Number(leadData.pricePaid) || 0,
+      invoiceBilled: Number(leadData.invoiceBilled) || 0,
+      status: leadData.status,
+      assignedTo: leadData.assignedTo || null,
+      brand: leadData.brand || null,
+      product: leadData.product || null,
+      location: leadData.location || null,
+      notes: leadData.notes || null
+    };
+
+    console.log('Sending clean lead update data to API:', cleanLeadData);
+    
+    return this.request(`/leads/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(leadData),
+      body: JSON.stringify(cleanLeadData),
     });
   }
 
   async deleteLead(id: string) {
-    return this.request(apiConfig.endpoints.leads.delete(id), {
+    return this.request(`/leads/${id}`, {
       method: 'DELETE',
     });
   }
 
   async bulkDeleteLeads(ids: string[]) {
-    return this.request(apiConfig.endpoints.leads.bulkDelete, {
+    return this.request('/leads/bulk-delete', {
       method: 'POST',
       body: JSON.stringify({ ids }),
     });
   }
 
   async bulkAssignLeads(ids: string[], salesPersonId: string) {
-    return this.request(apiConfig.endpoints.leads.bulkAssign, {
+    return this.request('/leads/bulk-assign', {
       method: 'POST',
       body: JSON.stringify({ ids, salesPersonId }),
     });
@@ -170,32 +208,32 @@ class ApiService {
 
   // User methods
   async getUsers() {
-    return this.request(apiConfig.endpoints.users.list);
+    return this.request('/users');
   }
 
   async createUser(userData: any) {
-    return this.request(apiConfig.endpoints.users.create, {
+    return this.request('/users', {
       method: 'POST',
       body: JSON.stringify(userData),
     });
   }
 
   async updateUser(id: string, userData: any) {
-    return this.request(apiConfig.endpoints.users.update(id), {
+    return this.request(`/users/${id}`, {
       method: 'PUT',
       body: JSON.stringify(userData),
     });
   }
 
   async deleteUser(id: string) {
-    return this.request(apiConfig.endpoints.users.delete(id), {
+    return this.request(`/users/${id}`, {
       method: 'DELETE',
     });
   }
 
   // Salespeople methods
   async getSalespeople() {
-    return this.request(apiConfig.endpoints.salespeople.list);
+    return this.request('/salespeople');
   }
 
   // Target methods

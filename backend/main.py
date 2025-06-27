@@ -18,12 +18,10 @@ import time
 from functools import wraps
 import logging
 
-
 # Load environment variables
 load_dotenv()
 
 app = FastAPI(title="ZownLead CRM API", version="1.0.0")
-
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +52,6 @@ print(f"JWT Secret: {JWT_SECRET[:10]}...")
 if not MONGODB_CONNECTION_STRING:
     print("WARNING: MONGODB_CONNECTION_STRING environment variable is not set!")
     print("Please set it in your .env file")
-    # For development, we'll use a default connection string
     MONGODB_CONNECTION_STRING = "mongodb://localhost:27017/zownlead_crm"
     print(f"Using default connection string: {MONGODB_CONNECTION_STRING}")
 
@@ -77,7 +74,6 @@ sources_collection = db.sources
 ownership_collection = db.ownership
 login_attempts_collection = db.login_attempts
 targets_collection = db.targets
-# New collections for Calendar and Tasks
 calendar_events_collection = db.calendar_events
 tasks_collection = db.tasks
 
@@ -153,33 +149,38 @@ class TargetResponse(BaseModel):
     class Config:
         populate_by_name = True
 
+# CLEAN LEAD MODELS - ONLY YOUR DESIRED FIELDS
 class LeadCreate(BaseModel):
-    first_name: str = Field(alias="firstName", min_length=1, max_length=100)
-    last_name: str = Field(alias="lastName", max_length=100, default="")
+    company_representative_name: str = Field(alias="companyRepresentativeName", min_length=1, max_length=100)
+    company_name: str = Field(alias="companyName", min_length=1, max_length=100)
     email: EmailStr
     phone: Optional[str] = Field(None, max_length=20)
-    domain: str = Field(..., min_length=1, max_length=255)
-    price: float = Field(default=0, ge=0)
-    clicks: int = Field(default=0, ge=0)
-    status: str = Field(default="new", pattern="^(new|contacted|qualified|converted|lost)$")
     source: str = Field(default="website", pattern="^(website|referral|call|other)$")
+    price_paid: float = Field(alias="pricePaid", default=0, ge=0)
+    invoice_billed: float = Field(alias="invoiceBilled", default=0, ge=0)
+    status: str = Field(default="new", pattern="^(new|contacted|qualified|converted|lost)$")
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
+    brand: Optional[str] = Field(None, max_length=100)
+    product: Optional[str] = Field(None, max_length=100)
+    location: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = Field(None, max_length=1000)
 
     class Config:
         populate_by_name = True
 
 class LeadUpdate(BaseModel):
-    first_name: Optional[str] = Field(None, alias="firstName", min_length=1, max_length=100)
-    last_name: Optional[str] = Field(None, alias="lastName", max_length=100)
+    company_representative_name: Optional[str] = Field(None, alias="companyRepresentativeName", min_length=1, max_length=100)
+    company_name: Optional[str] = Field(None, alias="companyName", min_length=1, max_length=100)
     email: Optional[EmailStr] = None
     phone: Optional[str] = Field(None, max_length=20)
-    domain: Optional[str] = Field(None, min_length=1, max_length=255)
-    price: Optional[float] = Field(None, ge=0)
-    clicks: Optional[int] = Field(None, ge=0)
-    status: Optional[str] = Field(None, pattern="^(new|contacted|qualified|converted|lost)$")
     source: Optional[str] = Field(None, pattern="^(website|referral|call|other)$")
+    price_paid: Optional[float] = Field(None, alias="pricePaid", ge=0)
+    invoice_billed: Optional[float] = Field(None, alias="invoiceBilled", ge=0)
+    status: Optional[str] = Field(None, pattern="^(new|contacted|qualified|converted|lost)$")
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
+    brand: Optional[str] = Field(None, max_length=100)
+    product: Optional[str] = Field(None, max_length=100)
+    location: Optional[str] = Field(None, max_length=100)
     notes: Optional[str] = Field(None, max_length=1000)
 
     class Config:
@@ -187,18 +188,20 @@ class LeadUpdate(BaseModel):
 
 class LeadResponse(BaseModel):
     id: str
-    first_name: str = Field(alias="firstName")
-    last_name: str = Field(alias="lastName")
+    company_representative_name: str = Field(alias="companyRepresentativeName")
+    company_name: str = Field(alias="companyName")
     email: str
     phone: Optional[str] = None
-    domain: str
-    price: float
-    clicks: int
-    update: str
-    status: str
     source: str
+    price_paid: float = Field(alias="pricePaid")
+    invoice_billed: float = Field(alias="invoiceBilled")
+    status: str
     assigned_to: Optional[str] = Field(None, alias="assignedTo")
+    brand: Optional[str] = None
+    product: Optional[str] = None
+    location: Optional[str] = None
     notes: Optional[str] = None
+    update: str
     created_at: str = Field(alias="createdAt")
 
     class Config:
@@ -210,7 +213,7 @@ class CalendarEventCreate(BaseModel):
     type: str = Field(..., pattern="^(call|meeting|demo|follow-up|task)$")
     date: str = Field(..., description="Date in YYYY-MM-DD format")
     time: str = Field(..., description="Time in HH:MM format")
-    duration: int = Field(default=60, ge=15, le=480)  # 15 minutes to 8 hours
+    duration: int = Field(default=60, ge=15, le=480)
     description: Optional[str] = Field(None, max_length=1000)
     contact_name: Optional[str] = Field(None, alias="contactName", max_length=100)
     contact_email: Optional[str] = Field(None, alias="contactEmail")
@@ -314,15 +317,12 @@ class BulkAssignRequest(BaseModel):
 
 # Security helper functions
 def hash_password(password: str) -> str:
-    """Hash password with bcrypt"""
     return pwd_context.hash(password)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify password against hash"""
     return pwd_context.verify(plain_password, hashed_password)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
-    """Create JWT access token"""
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -338,7 +338,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 async def get_login_attempts(email: str) -> dict:
-    """Get login attempts for an email"""
     return await login_attempts_collection.find_one({"email": email}) or {
         "email": email,
         "attempts": 0,
@@ -347,11 +346,9 @@ async def get_login_attempts(email: str) -> dict:
     }
 
 async def record_login_attempt(email: str, success: bool, ip_address: str = None):
-    """Record login attempt"""
     now = datetime.utcnow()
     
     if success:
-        # Reset attempts on successful login
         await login_attempts_collection.update_one(
             {"email": email},
             {
@@ -365,7 +362,6 @@ async def record_login_attempt(email: str, success: bool, ip_address: str = None
             upsert=True
         )
     else:
-        # Increment failed attempts
         attempts_doc = await get_login_attempts(email)
         new_attempts = attempts_doc["attempts"] + 1
         
@@ -375,7 +371,6 @@ async def record_login_attempt(email: str, success: bool, ip_address: str = None
             "last_ip": ip_address
         }
         
-        # Lock account if max attempts reached
         if new_attempts >= MAX_LOGIN_ATTEMPTS:
             update_data["locked_until"] = now + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
         
@@ -386,14 +381,12 @@ async def record_login_attempt(email: str, success: bool, ip_address: str = None
         )
 
 async def is_account_locked(email: str) -> bool:
-    """Check if account is locked due to failed attempts"""
     attempts_doc = await get_login_attempts(email)
     
     if attempts_doc.get("locked_until"):
         if datetime.utcnow() < attempts_doc["locked_until"]:
             return True
         else:
-            # Unlock expired lock
             await login_attempts_collection.update_one(
                 {"email": email},
                 {
@@ -407,7 +400,6 @@ async def is_account_locked(email: str) -> bool:
     return False
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Get current authenticated user"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -435,7 +427,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     if user is None:
         raise credentials_exception
     
-    # Check if user is still active
     if user.get("status") != "active":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -445,7 +436,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return user
 
 async def get_admin_user(current_user: dict = Depends(get_current_user)):
-    """Ensure current user is admin"""
     if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -454,16 +444,15 @@ async def get_admin_user(current_user: dict = Depends(get_current_user)):
     return current_user
 
 async def calculate_user_achievements(user_id: str):
-    """Calculate user's sales and invoice achievements from leads"""
     user_leads = await leads_collection.find({"assigned_to": user_id}).to_list(None)
     
-    sales_achieved = sum(lead.get("price", 0) for lead in user_leads)
-    invoice_achieved = sum(lead.get("clicks", 0) for lead in user_leads)
+    # Handle None values properly by using or 0 to ensure we always have numbers
+    sales_achieved = sum((lead.get("price_paid") or 0) for lead in user_leads)
+    invoice_achieved = sum((lead.get("invoice_billed") or 0) for lead in user_leads)
     
     return sales_achieved, invoice_achieved
 
 async def update_user_targets_achievements(user_id: str):
-    """Update user's target achievements based on their leads"""
     sales_achieved, invoice_achieved = await calculate_user_achievements(user_id)
     
     await targets_collection.update_one(
@@ -478,8 +467,8 @@ async def update_user_targets_achievements(user_id: str):
         upsert=False
     )
 
+# Fixed: Added missing format_user_response function
 def format_user_response(user: dict) -> dict:
-    """Format user response"""
     return {
         "id": str(user["_id"]),
         "name": user["name"],
@@ -491,27 +480,46 @@ def format_user_response(user: dict) -> dict:
         "created_at": user.get("created_at")
     }
 
+# FIXED BACKWARD-COMPATIBLE FORMAT LEAD RESPONSE FUNCTION
 def format_lead_response(lead: dict) -> dict:
-    """Format lead response"""
+    """Format lead response - backward compatible with old and new field formats"""
     return {
         "id": str(lead["_id"]),
-        "firstName": lead["first_name"],
-        "lastName": lead["last_name"],
+        # Handle both old and new field names with fallbacks
+        "companyRepresentativeName": (
+            lead.get("company_representative_name") or 
+            lead.get("first_name") or 
+            ""
+        ),
+        "companyName": (
+            lead.get("company_name") or 
+            lead.get("domain") or 
+            ""
+        ),
         "email": lead["email"],
         "phone": lead.get("phone"),
-        "domain": lead["domain"],
-        "price": lead["price"],
-        "clicks": lead["clicks"],
-        "update": lead.get("update", datetime.now().strftime("%b %d")),
-        "status": lead["status"],
         "source": lead["source"],
+        "pricePaid": (
+            lead.get("price_paid") or 
+            lead.get("price") or 
+            0
+        ),
+        "invoiceBilled": (
+            lead.get("invoice_billed") or 
+            lead.get("clicks") or 
+            0
+        ),
+        "status": lead["status"],
         "assignedTo": lead.get("assigned_to"),
+        "brand": lead.get("brand"),
+        "product": lead.get("product"), 
+        "location": lead.get("location"),
         "notes": lead.get("notes"),
+        "update": lead.get("update", datetime.now().strftime("%b %d")),
         "createdAt": lead["created_at"]
     }
 
 def format_target_response(target: dict) -> dict:
-    """Format target response"""
     return {
         "id": str(target["_id"]),
         "userId": target["user_id"],
@@ -525,7 +533,6 @@ def format_target_response(target: dict) -> dict:
     }
 
 def format_calendar_event_response(event: dict) -> dict:
-    """Format calendar event response"""
     contact = None
     if event.get("contact_name") or event.get("contact_email") or event.get("contact_phone"):
         contact = {
@@ -552,7 +559,6 @@ def format_calendar_event_response(event: dict) -> dict:
     }
 
 def format_task_response(task: dict) -> dict:
-    """Format task response"""
     return {
         "id": str(task["_id"]),
         "title": task["title"],
@@ -569,7 +575,6 @@ def format_task_response(task: dict) -> dict:
     }
 
 def serialize_doc(doc):
-    """Convert MongoDB document to JSON serializable format"""
     if doc is None:
         return None
     
@@ -595,38 +600,32 @@ def serialize_doc(doc):
     
     return doc
 
-
 def format_management_response(item: dict) -> dict:
-    """Format management item response"""
     formatted = {
         "id": str(item["_id"]),
     }
-    # Copy all fields except _id
     for key, value in item.items():
         if key != "_id":
             formatted[key] = value
     return formatted
 
-# Startup event to create indexes and default data
+# Startup event
 @app.on_event("startup")
 async def startup_event():
     print("Starting up application...")
     
     try:
-        # Test database connection
         await client.admin.command('ping')
         print("MongoDB connection successful!")
         
-        # Create indexes
         await users_collection.create_index("email", unique=True)
         await leads_collection.create_index("email")
-        await leads_collection.create_index("domain")
+        await leads_collection.create_index("company_name")
         await leads_collection.create_index("assigned_to")
         await targets_collection.create_index("user_id", unique=True)
         await login_attempts_collection.create_index("email", unique=True)
         await login_attempts_collection.create_index("locked_until", expireAfterSeconds=0)
         
-        # Create indexes for new collections
         await calendar_events_collection.create_index("user_id")
         await calendar_events_collection.create_index("date")
         await calendar_events_collection.create_index("status")
@@ -637,7 +636,6 @@ async def startup_event():
         
         print("Database indexes created successfully!")
         
-        # Create default admin user if it doesn't exist
         admin_user = await users_collection.find_one({"email": "admin@lead.com"})
         if not admin_user:
             admin_data = {
@@ -656,7 +654,6 @@ async def startup_event():
         else:
             print("Default admin user already exists")
 
-        # Create default sales user if it doesn't exist
         sales_user = await users_collection.find_one({"email": "sales@lead.com"})
         if not sales_user:
             sales_data = {
@@ -682,9 +679,7 @@ async def startup_event():
 # Health check
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     try:
-        # Test database connection
         await client.admin.command('ping')
         return {
             "status": "healthy", 
@@ -702,92 +697,79 @@ async def health_check():
 # Auth endpoints
 @app.post("/auth/login")
 async def login(user_data: UserLogin):
-    """Authenticate user login - supports both admin and sales users"""
-    email = user_data.email.lower()
-    
-    print(f"Login attempt for email: {email}")
-    
-    # Check if account is locked
-    if await is_account_locked(email):
-        print(f"Account locked for email: {email}")
-        raise HTTPException(
-            status_code=status.HTTP_423_LOCKED,
-            detail=f"Account locked due to too many failed attempts. Try again in {LOCKOUT_DURATION_MINUTES} minutes."
+    try:
+        email = user_data.email.lower()
+        
+        print(f"Login attempt for email: {email}")
+        
+        if await is_account_locked(email):
+            print(f"Account locked for email: {email}")
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=f"Account locked due to too many failed attempts. Try again in {LOCKOUT_DURATION_MINUTES} minutes."
+            )
+        
+        user = await users_collection.find_one({"email": email})
+        print(f"User found: {user is not None}")
+        
+        if not user or not verify_password(user_data.password, user["password"]):
+            print("Invalid credentials")
+            await record_login_attempt(email, False)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password",
+            )
+        
+        print(f"User role: {user.get('role')}")
+        
+        if user.get("role") not in ["admin", "sales"]:
+            print("User with invalid role attempted login")
+            await record_login_attempt(email, False)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid user role. Please contact your administrator."
+            )
+        
+        if user.get("status") != "active":
+            print("Inactive user attempted login")
+            await record_login_attempt(email, False)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User account is disabled"
+            )
+        
+        await record_login_attempt(email, True)
+        
+        await users_collection.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"last_login": datetime.now().strftime("%b %d, %Y")}}
         )
-    
-    # Find user
-    user = await users_collection.find_one({"email": email})
-    print(f"User found: {user is not None}")
-    
-    # Verify credentials
-    if not user or not verify_password(user_data.password, user["password"]):
-        print("Invalid credentials")
-        await record_login_attempt(email, False)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-        )
-    
-    print(f"User role: {user.get('role')}")
-    
-    # Check if user has valid role (admin or sales)
-    if user.get("role") not in ["admin", "sales"]:
-        print("User with invalid role attempted login")
-        await record_login_attempt(email, False)
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid user role. Please contact your administrator."
-        )
-    
-    # Check if user is active
-    if user.get("status") != "active":
-        print("Inactive user attempted login")
-        await record_login_attempt(email, False)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User account is disabled"
-        )
-    
-    # Record successful login
-    await record_login_attempt(email, True)
-    
-    # Update last login
-    await users_collection.update_one(
-        {"_id": user["_id"]},
-        {"$set": {"last_login": datetime.now().strftime("%b %d, %Y")}}
-    )
-    
-    # Create access token
-    access_token = create_access_token(data={"sub": str(user["_id"])})
-    
-    print("Login successful")
-    
-    return {
-        "success": True,
-        "data": {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "user": format_user_response(user)
+        
+        access_token = create_access_token(data={"sub": str(user["_id"])})
+        
+        print("Login successful")
+        
+        return {
+            "success": True,
+            "data": {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "user": format_user_response(user)
+            },
+            "message": "Login successful"
         }
-    }
-
-@app.get("/auth/me")
-async def get_current_user_info(current_user: dict = Depends(get_current_user)):
-    """Get current user information"""
-    return {
-        "success": True,
-        "data": format_user_response(current_user)
-    }
-
-@app.post("/auth/logout")
-async def logout(current_user: dict = Depends(get_current_user)):
-    """Logout user"""
-    return {"success": True, "message": "Logged out successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Login error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during login"
+        )
 
 # User endpoints (Admin only)
 @app.get("/users")
 async def get_users(current_user: dict = Depends(get_admin_user)):
-    """Get all users (Admin only)"""
     users = await users_collection.find({}).to_list(None)
     return {
         "success": True,
@@ -796,7 +778,6 @@ async def get_users(current_user: dict = Depends(get_admin_user)):
 
 @app.post("/users")
 async def create_user(user_data: UserCreate, current_user: dict = Depends(get_admin_user)):
-    """Create new user (Admin only)"""
     try:
         user_dict = {
             "name": user_data.name,
@@ -826,18 +807,13 @@ async def create_user(user_data: UserCreate, current_user: dict = Depends(get_ad
     
 @app.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)):
-    """
-    Delete a sales user by ID (Admin only). Cannot delete self or another admin.
-    """
     try:
         if not ObjectId.is_valid(user_id):
             raise HTTPException(status_code=400, detail="Invalid user ID")
 
-        # Prevent deleting your own account
         if str(current_user["_id"]) == user_id:
             raise HTTPException(status_code=400, detail="Cannot delete your own account")
         
-        # Fetch the user to check their role
         user_to_delete = await users_collection.find_one({"_id": ObjectId(user_id)})
 
         if not user_to_delete:
@@ -846,7 +822,6 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)
         if user_to_delete.get("role") != "sales":
             raise HTTPException(status_code=403, detail="Only sales users can be deleted")
 
-        # Proceed with deletion
         result = await users_collection.delete_one({"_id": ObjectId(user_id)})
 
         if result.deleted_count == 0:
@@ -873,7 +848,6 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
 
         if user_data.email is not None:
             email = user_data.email.lower()
-            # Check if email already exists for other users
             existing_user = await users_collection.find_one({
                 "email": email,
                 "_id": {"$ne": ObjectId(user_id)}
@@ -916,20 +890,41 @@ async def update_user(user_id: str, user_data: UserUpdate, current_user: dict = 
         logger.error(f"Error updating user: {e}")
         raise HTTPException(status_code=500, detail="Failed to update user")
 
-
 @app.get("/salespeople")
 async def get_salespeople(current_user: dict = Depends(get_current_user)):
-    """Get sales team members"""
     salespeople = await users_collection.find({"role": {"$in": ["sales", "admin"]}}).to_list(None)
     return {
         "success": True,
         "data": [format_user_response(user) for user in salespeople]
     }
 
+# NEW - Sales-accessible dropdown endpoints 
+@app.get("/dropdown-options")
+async def get_dropdown_options(current_user: dict = Depends(get_current_user)):
+    """Get dropdown options for leads form - accessible to both admin and sales"""
+    try:
+        brands = await brands_collection.find({}).to_list(None)
+        products = await products_collection.find({}).to_list(None)
+        locations = await locations_collection.find({}).to_list(None)
+        
+        return {
+            "success": True,
+            "data": {
+                "brands": [format_management_response(item) for item in brands],
+                "products": [format_management_response(item) for item in products],
+                "locations": [format_management_response(item) for item in locations]
+            }
+        }
+    except Exception as e:
+        print(f"Error loading dropdown options: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load dropdown options"
+        )
+
 # Target endpoints
 @app.get("/targets")
 async def get_all_targets(current_user: dict = Depends(get_admin_user)):
-    """Get all user targets (Admin only)"""
     targets = await targets_collection.find({}).to_list(None)
     return {
         "success": True,
@@ -938,8 +933,6 @@ async def get_all_targets(current_user: dict = Depends(get_admin_user)):
 
 @app.get("/targets/{user_id}")
 async def get_user_targets(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Get targets for a specific user"""
-    # Check if current user can access these targets
     if current_user.get("role") != "admin" and str(current_user["_id"]) != user_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -948,7 +941,6 @@ async def get_user_targets(user_id: str, current_user: dict = Depends(get_curren
     
     target = await targets_collection.find_one({"user_id": user_id})
     if not target:
-        # Return default empty targets
         return {
             "success": True,
             "data": {
@@ -968,9 +960,7 @@ async def get_user_targets(user_id: str, current_user: dict = Depends(get_curren
 
 @app.post("/targets")
 async def create_or_update_targets(target_data: TargetCreate, current_user: dict = Depends(get_admin_user)):
-    """Create or update user targets (Admin only)"""
     try:
-        # Verify the user exists
         user = await users_collection.find_one({"_id": ObjectId(target_data.user_id)})
         if not user:
             raise HTTPException(
@@ -978,7 +968,6 @@ async def create_or_update_targets(target_data: TargetCreate, current_user: dict
                 detail="User not found"
             )
         
-        # Calculate current achievements
         sales_achieved, invoice_achieved = await calculate_user_achievements(target_data.user_id)
         
         target_dict = {
@@ -992,11 +981,9 @@ async def create_or_update_targets(target_data: TargetCreate, current_user: dict
             "updated_by": str(current_user["_id"])
         }
         
-        # Check if target already exists
         existing_target = await targets_collection.find_one({"user_id": target_data.user_id})
         
         if existing_target:
-            # Update existing target
             result = await targets_collection.update_one(
                 {"user_id": target_data.user_id},
                 {"$set": target_dict}
@@ -1004,7 +991,6 @@ async def create_or_update_targets(target_data: TargetCreate, current_user: dict
             target_dict["_id"] = existing_target["_id"]
             target_dict["created_at"] = existing_target["created_at"]
         else:
-            # Create new target
             target_dict["created_at"] = datetime.utcnow().isoformat()
             result = await targets_collection.insert_one(target_dict)
             target_dict["_id"] = result.inserted_id
@@ -1024,9 +1010,7 @@ async def create_or_update_targets(target_data: TargetCreate, current_user: dict
 
 @app.put("/targets/{user_id}")
 async def update_targets(user_id: str, target_data: TargetUpdate, current_user: dict = Depends(get_admin_user)):
-    """Update user targets (Admin only)"""
     try:
-        # Verify the user exists
         user = await users_collection.find_one({"_id": ObjectId(user_id)})
         if not user:
             raise HTTPException(
@@ -1034,7 +1018,6 @@ async def update_targets(user_id: str, target_data: TargetUpdate, current_user: 
                 detail="User not found"
             )
         
-        # Get existing target
         existing_target = await targets_collection.find_one({"user_id": user_id})
         if not existing_target:
             raise HTTPException(
@@ -1042,7 +1025,6 @@ async def update_targets(user_id: str, target_data: TargetUpdate, current_user: 
                 detail="Target not found for this user"
             )
         
-        # Calculate current achievements
         sales_achieved, invoice_achieved = await calculate_user_achievements(user_id)
         
         update_data = {
@@ -1052,7 +1034,6 @@ async def update_targets(user_id: str, target_data: TargetUpdate, current_user: 
             "updated_by": str(current_user["_id"])
         }
         
-        # Update only provided fields
         if target_data.sales_target is not None:
             update_data["sales_target"] = target_data.sales_target
         if target_data.invoice_target is not None:
@@ -1071,7 +1052,6 @@ async def update_targets(user_id: str, target_data: TargetUpdate, current_user: 
                 detail="Target not found"
             )
         
-        # Get updated target
         updated_target = await targets_collection.find_one({"user_id": user_id})
         
         return {
@@ -1089,7 +1069,6 @@ async def update_targets(user_id: str, target_data: TargetUpdate, current_user: 
 
 @app.delete("/targets/{user_id}")
 async def delete_targets(user_id: str, current_user: dict = Depends(get_admin_user)):
-    """Delete user targets (Admin only)"""
     result = await targets_collection.delete_one({"user_id": user_id})
     
     if result.deleted_count == 0:
@@ -1106,7 +1085,6 @@ async def delete_targets(user_id: str, current_user: dict = Depends(get_admin_us
 # Calendar Events endpoints
 @app.get("/calendar/events")
 async def get_calendar_events(current_user: dict = Depends(get_current_user)):
-    """Get calendar events for current user"""
     events = await calendar_events_collection.find({"user_id": str(current_user["_id"])}).to_list(None)
     return {
         "success": True,
@@ -1115,7 +1093,6 @@ async def get_calendar_events(current_user: dict = Depends(get_current_user)):
 
 @app.post("/calendar/events")
 async def create_calendar_event(event_data: CalendarEventCreate, current_user: dict = Depends(get_current_user)):
-    """Create new calendar event"""
     event_dict = {
         "title": event_data.title,
         "type": event_data.type,
@@ -1146,18 +1123,15 @@ async def create_calendar_event(event_data: CalendarEventCreate, current_user: d
 
 @app.put("/calendar/events/{event_id}")
 async def update_calendar_event(event_id: str, event_data: CalendarEventUpdate, current_user: dict = Depends(get_current_user)):
-    """Update calendar event"""
     try:
         object_id = ObjectId(event_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid event ID")
     
-    # Check if event exists and user has permission
     event = await calendar_events_collection.find_one({"_id": object_id})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Check if user owns the event
     if event.get("user_id") != str(current_user["_id"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1166,7 +1140,6 @@ async def update_calendar_event(event_id: str, event_data: CalendarEventUpdate, 
     
     update_data = {k: v for k, v in event_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
     
-    # Convert camelCase to snake_case for database
     field_mapping = {
         "contactName": "contact_name",
         "contactEmail": "contact_email",
@@ -1200,18 +1173,15 @@ async def update_calendar_event(event_id: str, event_data: CalendarEventUpdate, 
 
 @app.delete("/calendar/events/{event_id}")
 async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete calendar event"""
     try:
         object_id = ObjectId(event_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid event ID")
     
-    # Check if event exists and user has permission
     event = await calendar_events_collection.find_one({"_id": object_id})
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     
-    # Check if user owns the event
     if event.get("user_id") != str(current_user["_id"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1231,7 +1201,6 @@ async def delete_calendar_event(event_id: str, current_user: dict = Depends(get_
 # Tasks endpoints
 @app.get("/tasks")
 async def get_tasks(current_user: dict = Depends(get_current_user)):
-    """Get tasks for current user"""
     tasks = await tasks_collection.find({"user_id": str(current_user["_id"])}).to_list(None)
     return {
         "success": True,
@@ -1240,7 +1209,6 @@ async def get_tasks(current_user: dict = Depends(get_current_user)):
 
 @app.post("/tasks")
 async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_current_user)):
-    """Create new task"""
     task_dict = {
         "title": task_data.title,
         "description": task_data.description,
@@ -1267,18 +1235,15 @@ async def create_task(task_data: TaskCreate, current_user: dict = Depends(get_cu
 
 @app.put("/tasks/{task_id}")
 async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = Depends(get_current_user)):
-    """Update task"""
     try:
         object_id = ObjectId(task_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid task ID")
     
-    # Check if task exists and user has permission
     task = await tasks_collection.find_one({"_id": object_id})
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Check if user owns the task
     if task.get("user_id") != str(current_user["_id"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1287,7 +1252,6 @@ async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = 
     
     update_data = {k: v for k, v in task_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
     
-    # Convert camelCase to snake_case for database
     field_mapping = {
         "dueDate": "due_date",
         "assignedTo": "assigned_to",
@@ -1321,18 +1285,15 @@ async def update_task(task_id: str, task_data: TaskUpdate, current_user: dict = 
 
 @app.delete("/tasks/{task_id}")
 async def delete_task(task_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete task"""
     try:
         object_id = ObjectId(task_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid task ID")
     
-    # Check if task exists and user has permission
     task = await tasks_collection.find_one({"_id": object_id})
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    # Check if user owns the task
     if task.get("user_id") != str(current_user["_id"]):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1349,15 +1310,12 @@ async def delete_task(task_id: str, current_user: dict = Depends(get_current_use
         "message": "Task deleted successfully"
     }
 
-# Lead endpoints with role-based access control
+# CLEAN LEAD ENDPOINTS
 @app.get("/leads")
 async def get_leads(current_user: dict = Depends(get_current_user)):
-    """Get leads based on user role"""
     if current_user.get("role") == "admin":
-        # Admin can see all leads
         leads = await leads_collection.find({}).to_list(None)
     else:
-        # Sales users can only see their assigned leads
         leads = await leads_collection.find({"assigned_to": str(current_user["_id"])}).to_list(None)
     
     return {
@@ -1365,30 +1323,32 @@ async def get_leads(current_user: dict = Depends(get_current_user)):
         "data": [format_lead_response(lead) for lead in leads]
     }
 
+# CLEAN CREATE LEAD FUNCTION
 @app.post("/leads")
 async def create_lead(lead_data: LeadCreate, current_user: dict = Depends(get_current_user)):
-    """Create new lead"""
     lead_dict = {
-        "first_name": lead_data.first_name,
-        "last_name": lead_data.last_name,
+        "company_representative_name": lead_data.company_representative_name,
+        "company_name": lead_data.company_name,
         "email": lead_data.email.lower(),
         "phone": lead_data.phone,
-        "domain": lead_data.domain,
-        "price": lead_data.price,
-        "clicks": lead_data.clicks,
-        "status": lead_data.status,
         "source": lead_data.source,
+        "price_paid": float(lead_data.price_paid),
+        "invoice_billed": float(lead_data.invoice_billed),
+        "status": lead_data.status,
         "assigned_to": lead_data.assigned_to,
+        "brand": lead_data.brand,
+        "product": lead_data.product,
+        "location": lead_data.location,
         "notes": lead_data.notes,
         "update": datetime.now().strftime("%b %d"),
         "created_at": datetime.utcnow().isoformat(),
         "created_by": str(current_user["_id"])
     }
     
+    print(f"Creating lead with clean data: {lead_dict}")
     result = await leads_collection.insert_one(lead_dict)
     lead_dict["_id"] = result.inserted_id
     
-    # Update target achievements if lead is assigned
     if lead_data.assigned_to:
         await update_user_targets_achievements(lead_data.assigned_to)
     
@@ -1398,25 +1358,21 @@ async def create_lead(lead_data: LeadCreate, current_user: dict = Depends(get_cu
         "message": "Lead created successfully"
     }
 
+# UPDATE LEAD FUNCTION WITH CLEAN FIELD MAPPING
 @app.put("/leads/{lead_id}")
 async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = Depends(get_current_user)):
-    """Update lead with role-based access control"""
     try:
         object_id = ObjectId(lead_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid lead ID")
     
-    # Check if lead exists and user has permission
     lead = await leads_collection.find_one({"_id": object_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     
-    # Store old assigned user for target updates
     old_assigned_to = lead.get("assigned_to")
     
-    # Role-based access control
     if current_user.get("role") == "sales":
-        # Sales users can only update their assigned leads
         if lead.get("assigned_to") != str(current_user["_id"]):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -1425,10 +1381,11 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
     
     update_data = {k: v for k, v in lead_data.dict(exclude_unset=True, by_alias=True).items() if v is not None}
     
-    # Convert camelCase to snake_case for database
     field_mapping = {
-        "firstName": "first_name",
-        "lastName": "last_name",
+        "companyRepresentativeName": "company_representative_name",
+        "companyName": "company_name",
+        "pricePaid": "price_paid",
+        "invoiceBilled": "invoice_billed",
         "assignedTo": "assigned_to"
     }
     
@@ -1455,7 +1412,6 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
     updated_lead = await leads_collection.find_one({"_id": object_id})
     new_assigned_to = updated_lead.get("assigned_to")
     
-    # Update target achievements for affected users
     users_to_update = set()
     if old_assigned_to:
         users_to_update.add(old_assigned_to)
@@ -1473,22 +1429,18 @@ async def update_lead(lead_id: str, lead_data: LeadUpdate, current_user: dict = 
 
 @app.delete("/leads/{lead_id}")
 async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete lead with role-based access control"""
     try:
         object_id = ObjectId(lead_id)
     except:
         raise HTTPException(status_code=400, detail="Invalid lead ID")
     
-    # Check if lead exists and user has permission
     lead = await leads_collection.find_one({"_id": object_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     
     assigned_to = lead.get("assigned_to")
     
-    # Role-based access control
     if current_user.get("role") == "sales":
-        # Sales users can only delete their assigned leads
         if lead.get("assigned_to") != str(current_user["_id"]):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -1500,7 +1452,6 @@ async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_use
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Lead not found")
     
-    # Update target achievements if lead was assigned
     if assigned_to:
         await update_user_targets_achievements(assigned_to)
     
@@ -1511,19 +1462,15 @@ async def delete_lead(lead_id: str, current_user: dict = Depends(get_current_use
 
 @app.post("/leads/bulk-delete")
 async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Depends(get_current_user)):
-    """Bulk delete leads with role-based access control"""
     try:
         object_ids = [ObjectId(id) for id in request.ids]
     except:
         raise HTTPException(status_code=400, detail="Invalid lead IDs")
     
-    # Get leads to check permissions and track assigned users
     leads = await leads_collection.find({"_id": {"$in": object_ids}}).to_list(None)
     assigned_users = set()
     
-    # Role-based access control
     if current_user.get("role") == "sales":
-        # Sales users can only delete their assigned leads
         for lead in leads:
             if lead.get("assigned_to") != str(current_user["_id"]):
                 raise HTTPException(
@@ -1533,14 +1480,12 @@ async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Dep
             if lead.get("assigned_to"):
                 assigned_users.add(lead["assigned_to"])
     else:
-        # Admin can delete any leads, track all assigned users
         for lead in leads:
             if lead.get("assigned_to"):
                 assigned_users.add(lead["assigned_to"])
     
     result = await leads_collection.delete_many({"_id": {"$in": object_ids}})
     
-    # Update target achievements for all affected users
     for user_id in assigned_users:
         await update_user_targets_achievements(user_id)
     
@@ -1551,13 +1496,11 @@ async def bulk_delete_leads(request: BulkDeleteRequest, current_user: dict = Dep
 
 @app.post("/leads/bulk-assign")
 async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Depends(get_admin_user)):
-    """Bulk assign leads (Admin only)"""
     try:
         object_ids = [ObjectId(id) for id in request.ids]
     except:
         raise HTTPException(status_code=400, detail="Invalid lead IDs")
     
-    # Get leads to track old assignments
     leads = await leads_collection.find({"_id": {"$in": object_ids}}).to_list(None)
     old_assigned_users = set()
     for lead in leads:
@@ -1575,7 +1518,6 @@ async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Dep
         }
     )
     
-    # Update target achievements for all affected users
     affected_users = old_assigned_users.copy()
     affected_users.add(request.sales_person_id)
     
@@ -1590,7 +1532,6 @@ async def bulk_assign_leads(request: BulkAssignRequest, current_user: dict = Dep
 # Management endpoints (Admin only)
 @app.get("/management/{item_type}")
 async def get_management_items(item_type: str, current_user: dict = Depends(get_admin_user)):
-    """Get management items (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -1613,7 +1554,6 @@ async def get_management_items(item_type: str, current_user: dict = Depends(get_
 
 @app.post("/management/{item_type}")
 async def create_management_item(item_type: str, item_data: dict, current_user: dict = Depends(get_admin_user)):
-    """Create management item (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -1628,7 +1568,6 @@ async def create_management_item(item_type: str, item_data: dict, current_user: 
     
     collection = collection_map[item_type]
     
-    # Add metadata
     item_data["created_at"] = datetime.utcnow().isoformat()
     item_data["created_by"] = str(current_user["_id"])
     item_data["updated_at"] = datetime.utcnow().isoformat()
@@ -1650,7 +1589,6 @@ async def create_management_item(item_type: str, item_data: dict, current_user: 
 
 @app.put("/management/{item_type}/{item_id}")
 async def update_management_item(item_type: str, item_id: str, item_data: dict, current_user: dict = Depends(get_admin_user)):
-    """Update management item (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -1670,11 +1608,9 @@ async def update_management_item(item_type: str, item_id: str, item_data: dict, 
     
     collection = collection_map[item_type]
     
-    # Add update metadata
     item_data["updated_at"] = datetime.utcnow().isoformat()
     item_data["updated_by"] = str(current_user["_id"])
     
-    # Remove id from update data if present
     if "id" in item_data:
         del item_data["id"]
     
@@ -1687,7 +1623,6 @@ async def update_management_item(item_type: str, item_id: str, item_data: dict, 
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail=f"{item_type.capitalize()[:-1]} not found")
         
-        # Get updated item
         updated_item = await collection.find_one({"_id": object_id})
         
         return {
@@ -1703,7 +1638,6 @@ async def update_management_item(item_type: str, item_id: str, item_data: dict, 
 
 @app.delete("/management/{item_type}/{item_id}")
 async def delete_management_item(item_type: str, item_id: str, current_user: dict = Depends(get_admin_user)):
-    """Delete management item (Admin only)"""
     collection_map = {
         "brands": brands_collection,
         "products": products_collection,
@@ -1739,5 +1673,6 @@ async def delete_management_item(item_type: str, item_id: str, current_user: dic
             detail=f"Failed to delete {item_type[:-1]}: {str(e)}"
         )
 
+# This is only used when running main.py directly (not recommended in production)
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

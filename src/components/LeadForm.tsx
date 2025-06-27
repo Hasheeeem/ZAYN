@@ -40,33 +40,27 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   const [customProduct, setCustomProduct] = useState('');
   const [customLocation, setCustomLocation] = useState('');
   
+  // Clean form state with ONLY your desired fields
   const [form, setForm] = useState<Lead>({
     id: initialData?.id || '',
-    firstName: initialData?.firstName || '',
-    lastName: initialData?.lastName || '',
+    companyRepresentativeName: initialData?.companyRepresentativeName || '',
+    companyName: initialData?.companyName || '',
     email: initialData?.email || '',
     phone: initialData?.phone || '',
-    domain: initialData?.domain || '',
-    price: initialData?.price || 0,
-    clicks: initialData?.clicks || 0,
-    status: initialData?.status || 'new',
     source: initialData?.source || 'website',
+    pricePaid: initialData?.pricePaid || 0,
+    invoiceBilled: initialData?.invoiceBilled || 0,
+    status: initialData?.status || 'new',
     assignedTo: initialData?.assignedTo || (isAdmin ? '' : authState.user?.id.toString() || ''),
-    notes: initialData?.notes || '',
-    update: initialData?.update || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    createdAt: initialData?.createdAt || new Date().toISOString(),
-    // New fields for the updated form
-    companyRepresentativeName: initialData?.companyRepresentativeName || initialData?.firstName || '',
-    companyName: initialData?.companyName || initialData?.domain || '',
-    pricePaid: initialData?.pricePaid || initialData?.price || 0,
-    invoiceBilled: initialData?.invoiceBilled || initialData?.clicks || 0,
-    // Brand, Product, Location fields
     brand: initialData?.brand || '',
     product: initialData?.product || '',
-    location: initialData?.location || ''
+    location: initialData?.location || '',
+    notes: initialData?.notes || '',
+    update: initialData?.update || new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    createdAt: initialData?.createdAt || new Date().toISOString()
   });
 
-  // Load dropdown options on component mount - ALWAYS load regardless of user role
+  // Load dropdown options on component mount
   useEffect(() => {
     loadDropdownOptions();
   }, []);
@@ -75,11 +69,10 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     if (initialData) {
       setForm({
         ...initialData,
-        // Ensure required fields are mapped correctly
-        companyRepresentativeName: initialData.companyRepresentativeName || initialData.firstName || '',
-        companyName: initialData.companyName || initialData.domain || '',
-        pricePaid: initialData.pricePaid || initialData.price || 0,
-        invoiceBilled: initialData.invoiceBilled || initialData.clicks || 0,
+        companyRepresentativeName: initialData.companyRepresentativeName || '',
+        companyName: initialData.companyName || '',
+        pricePaid: initialData.pricePaid || 0,
+        invoiceBilled: initialData.invoiceBilled || 0,
         brand: initialData.brand || '',
         product: initialData.product || '',
         location: initialData.location || ''
@@ -87,58 +80,56 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     }
   }, [initialData]);
 
+  // FIXED: Use new sales-accessible endpoint
   const loadDropdownOptions = async () => {
     setLoadingOptions(true);
     try {
-      console.log('Loading dropdown options for', isAdmin ? 'admin' : 'sales', 'user...');
-      const [brandsResponse, productsResponse, locationsResponse] = await Promise.all([
-        apiService.getManagementData('brands'),
-        apiService.getManagementData('products'),
-        apiService.getManagementData('locations')
-      ]);
-
-      console.log('Brands response:', brandsResponse);
-      console.log('Products response:', productsResponse);
-      console.log('Locations response:', locationsResponse);
-
-      if (brandsResponse.success) {
-        const brandOptions = brandsResponse.data.map((item: any) => ({ 
-          id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
-          name: item.name 
-        }));
-        console.log('Setting brands:', brandOptions);
-        setBrands(brandOptions);
-      } else {
-        console.warn('Failed to load brands:', brandsResponse.message);
-        setBrands([]); // Set empty array on failure
-      }
+      console.log('Loading dropdown options...');
       
-      if (productsResponse.success) {
-        const productOptions = productsResponse.data.map((item: any) => ({ 
-          id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
-          name: item.name 
-        }));
-        console.log('Setting products:', productOptions);
-        setProducts(productOptions);
+      // NEW: Use single sales-accessible endpoint instead of 3 admin-only endpoints
+      const response = await apiService.request('/dropdown-options', 'GET');
+
+      if (response.success && response.data) {
+        // Extract brands
+        if (response.data.brands) {
+          const brandOptions = response.data.brands.map((item: any) => ({ 
+            id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
+            name: item.name 
+          }));
+          setBrands(brandOptions);
+        } else {
+          setBrands([]);
+        }
+        
+        // Extract products
+        if (response.data.products) {
+          const productOptions = response.data.products.map((item: any) => ({ 
+            id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
+            name: item.name 
+          }));
+          setProducts(productOptions);
+        } else {
+          setProducts([]);
+        }
+        
+        // Extract locations
+        if (response.data.locations) {
+          const locationOptions = response.data.locations.map((item: any) => ({ 
+            id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
+            name: item.name 
+          }));
+          setLocations(locationOptions);
+        } else {
+          setLocations([]);
+        }
+        
       } else {
-        console.warn('Failed to load products:', productsResponse.message);
-        setProducts([]); // Set empty array on failure
-      }
-      
-      if (locationsResponse.success) {
-        const locationOptions = locationsResponse.data.map((item: any) => ({ 
-          id: item.id?.toString() || item._id?.toString() || Math.random().toString(), 
-          name: item.name 
-        }));
-        console.log('Setting locations:', locationOptions);
-        setLocations(locationOptions);
-      } else {
-        console.warn('Failed to load locations:', locationsResponse.message);
-        setLocations([]); // Set empty array on failure
+        setBrands([]);
+        setProducts([]);
+        setLocations([]);
       }
     } catch (error) {
       console.error('Error loading dropdown options:', error);
-      // Set empty arrays on error and show notification
       setBrands([]);
       setProducts([]);
       setLocations([]);
@@ -150,14 +141,11 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
   const addCustomOption = async (type: 'brands' | 'products' | 'locations', name: string) => {
     try {
-      console.log(`Adding custom ${type}:`, name);
-      
-      const data = {
+      const data: any = {
         name: name.trim(),
         status: 'active'
       };
 
-      // Add additional required fields based on type
       if (type === 'products') {
         data.sku = '';
         data.brandId = 0;
@@ -168,9 +156,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         data.description = '';
       }
 
-      console.log(`Creating ${type} with data:`, data);
       const response = await apiService.createManagementItem(type, data);
-      console.log(`Create ${type} response:`, response);
       
       if (response.success) {
         const newOption = { 
@@ -178,7 +164,6 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           name: response.data.name 
         };
         
-        // Update the appropriate dropdown
         if (type === 'brands') {
           setBrands(prev => [...prev, newOption]);
           setForm(prev => ({ ...prev, brand: response.data.name }));
@@ -196,11 +181,11 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           setCustomLocation('');
         }
         
-        showNotification(`${name} added successfully and will be available for all users`, 'success');
+        showNotification(`${name} added successfully`, 'success');
       } else {
         throw new Error(response.message || `Failed to add ${name}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error adding custom ${type}:`, error);
       showNotification(`Failed to add ${name}. ${error.message || ''}`, 'error');
     }
@@ -241,37 +226,29 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
 
     setSaving(true);
     try {
-      // Create the payload that matches the backend schema
-      const leadPayload = {
-        ...form,
-        // Map the new fields to the existing schema
-        firstName: form.companyRepresentativeName,
-        lastName: '',
-        domain: form.companyName,
-        price: parseFloat(form.pricePaid?.toString() || '0') || 0,
-        email: form.email,
-        phone: form.phone || null,
-        clicks: parseFloat(form.invoiceBilled?.toString() || '0') || 0, // Map invoiceBilled to clicks
-        status: form.status,
-        source: form.source,
-        assignedTo: form.assignedTo || null,
-        notes: form.notes || null,
-        // Keep the new fields for display purposes
+      const leadPayload: Lead = {
         companyRepresentativeName: form.companyRepresentativeName,
         companyName: form.companyName,
+        email: form.email,
+        phone: form.phone || '',
+        source: form.source,
         pricePaid: parseFloat(form.pricePaid?.toString() || '0') || 0,
         invoiceBilled: parseFloat(form.invoiceBilled?.toString() || '0') || 0,
-        // Include the new Brand, Product, Location fields
-        brand: form.brand || null,
-        product: form.product || null,
-        location: form.location || null
+        status: form.status,
+        assignedTo: form.assignedTo || '',
+        brand: form.brand || '',
+        product: form.product || '',
+        location: form.location || '',
+        notes: form.notes || '',
+        update: form.update,
+        createdAt: form.createdAt,
+        id: form.id
       };
 
       console.log('Submitting lead payload:', leadPayload);
       await onSave(leadPayload);
     } catch (error) {
       console.error('Error saving lead:', error);
-      // Error is handled in the parent component
     } finally {
       setSaving(false);
     }
@@ -280,17 +257,14 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
-    // Handle numeric fields with decimal support
     if (name === 'pricePaid' || name === 'invoiceBilled') {
-      // Allow only numbers and decimal points
       const numericValue = value.replace(/[^0-9.]/g, '');
-      // Ensure only one decimal point
       const parts = numericValue.split('.');
       const formattedValue = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : numericValue;
       
       setForm(prev => ({ 
         ...prev, 
-        [name]: formattedValue
+        [name]: formattedValue as any
       }));
     } else {
       setForm(prev => ({ 
@@ -333,7 +307,6 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
     }
   };
 
-  // Add keyboard support for custom inputs
   const handleCustomKeyPress = (
     e: React.KeyboardEvent<HTMLInputElement>,
     type: 'brands' | 'products' | 'locations',
@@ -530,15 +503,10 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
         </div>
       </div>
 
-      {/* Brand, Product, Location Section - Enhanced for both Admin and Sales */}
+      {/* Business Details Section */}
       <div className="border-t pt-4 mt-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-medium text-gray-800">Business Details</h3>
-          {!isAdmin && (
-            <div className="text-sm text-gray-500">
-              💡 Can't find what you need? Add new items directly!
-            </div>
-          )}
         </div>
         
         {loadingOptions && (
@@ -547,11 +515,10 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           </div>
         )}
         
-        {/* Show success message when options are loaded */}
         {!loadingOptions && (brands.length > 0 || products.length > 0 || locations.length > 0) && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-green-700 text-sm">
-              ✅ Loaded {brands.length} brands, {products.length} products, and {locations.length} locations from management data
+              ✅ Loaded {brands.length} brands, {products.length} products, and {locations.length} locations
             </p>
           </div>
         )}
@@ -561,41 +528,37 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           <div>
             <label htmlFor="brand" className="block text-sm font-medium text-gray-700 mb-1">
               Brand
-              {!isAdmin && <span className="text-xs text-gray-500 ml-1">(+ Add new)</span>}
             </label>
             {showCustomBrand ? (
               <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={customBrand}
-                    onChange={(e) => setCustomBrand(e.target.value)}
-                    onKeyDown={(e) => handleCustomKeyPress(e, 'brands', customBrand)}
-                    className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter new brand"
-                    disabled={isLoading || saving}
-                    autoFocus
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={customBrand}
+                  onChange={(e) => setCustomBrand(e.target.value)}
+                  onKeyDown={(e) => handleCustomKeyPress(e, 'brands', customBrand)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Enter new brand"
+                  disabled={isLoading || saving}
+                  autoFocus
+                />
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleCustomSubmit('brands', customBrand)}
-                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
                     disabled={isLoading || saving || !customBrand.trim()}
                   >
-                    Add & Save
+                    Add
                   </button>
                   <button
                     type="button"
                     onClick={() => handleCustomCancel('brand')}
-                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600"
                     disabled={isLoading || saving}
                   >
                     Cancel
                   </button>
                 </div>
-                <p className="text-xs text-gray-500">Press Enter to add, Escape to cancel</p>
               </div>
             ) : (
               <select
@@ -611,9 +574,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                     {brand.name}
                   </option>
                 ))}
-                <option value="custom" className="bg-blue-50 text-blue-700 font-medium">
-                  ➕ Add New Brand
-                </option>
+                <option value="custom">➕ Add New Brand</option>
               </select>
             )}
           </div>
@@ -622,41 +583,37 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           <div>
             <label htmlFor="product" className="block text-sm font-medium text-gray-700 mb-1">
               Product
-              {!isAdmin && <span className="text-xs text-gray-500 ml-1">(+ Add new)</span>}
             </label>
             {showCustomProduct ? (
               <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={customProduct}
-                    onChange={(e) => setCustomProduct(e.target.value)}
-                    onKeyDown={(e) => handleCustomKeyPress(e, 'products', customProduct)}
-                    className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter new product"
-                    disabled={isLoading || saving}
-                    autoFocus
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={customProduct}
+                  onChange={(e) => setCustomProduct(e.target.value)}
+                  onKeyDown={(e) => handleCustomKeyPress(e, 'products', customProduct)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Enter new product"
+                  disabled={isLoading || saving}
+                  autoFocus
+                />
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleCustomSubmit('products', customProduct)}
-                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
                     disabled={isLoading || saving || !customProduct.trim()}
                   >
-                    Add & Save
+                    Add
                   </button>
                   <button
                     type="button"
                     onClick={() => handleCustomCancel('product')}
-                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600"
                     disabled={isLoading || saving}
                   >
                     Cancel
                   </button>
                 </div>
-                <p className="text-xs text-gray-500">Press Enter to add, Escape to cancel</p>
               </div>
             ) : (
               <select
@@ -672,9 +629,7 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                     {product.name}
                   </option>
                 ))}
-                <option value="custom" className="bg-blue-50 text-blue-700 font-medium">
-                  ➕ Add New Product
-                </option>
+                <option value="custom">➕ Add New Product</option>
               </select>
             )}
           </div>
@@ -683,41 +638,37 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
           <div>
             <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
               Location
-              {!isAdmin && <span className="text-xs text-gray-500 ml-1">(+ Add new)</span>}
             </label>
             {showCustomLocation ? (
               <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={customLocation}
-                    onChange={(e) => setCustomLocation(e.target.value)}
-                    onKeyDown={(e) => handleCustomKeyPress(e, 'locations', customLocation)}
-                    className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                    placeholder="Enter new location"
-                    disabled={isLoading || saving}
-                    autoFocus
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={customLocation}
+                  onChange={(e) => setCustomLocation(e.target.value)}
+                  onKeyDown={(e) => handleCustomKeyPress(e, 'locations', customLocation)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Enter new location"
+                  disabled={isLoading || saving}
+                  autoFocus
+                />
                 <div className="flex gap-2">
                   <button
                     type="button"
                     onClick={() => handleCustomSubmit('locations', customLocation)}
-                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition-colors"
+                    className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
                     disabled={isLoading || saving || !customLocation.trim()}
                   >
-                    Add & Save
+                    Add
                   </button>
                   <button
                     type="button"
                     onClick={() => handleCustomCancel('location')}
-                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition-colors"
+                    className="px-3 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600"
                     disabled={isLoading || saving}
                   >
                     Cancel
                   </button>
                 </div>
-                <p className="text-xs text-gray-500">Press Enter to add, Escape to cancel</p>
               </div>
             ) : (
               <select
@@ -733,23 +684,11 @@ const LeadForm: React.FC<Props> = ({ onSave, onCancel, initialData, isLoading = 
                     {location.name}
                   </option>
                 ))}
-                <option value="custom" className="bg-blue-50 text-blue-700 font-medium">
-                  ➕ Add New Location
-                </option>
+                <option value="custom">➕ Add New Location</option>
               </select>
             )}
           </div>
         </div>
-        
-        {/* Show helpful message for sales users */}
-        {!isAdmin && !loadingOptions && (
-          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-blue-700 text-sm">
-              <strong>💡 Pro tip:</strong> When you add new brands, products, or locations here, they'll automatically be saved 
-              to the database and become available for all users in future forms!
-            </p>
-          </div>
-        )}
       </div>
 
       <div>
