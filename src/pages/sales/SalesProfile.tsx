@@ -1,34 +1,11 @@
 import React, { useState } from 'react';
-import { User, Mail, Phone, MapPin, Calendar, TrendingUp, Edit2, Save, X, Clock, Star } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, TrendingUp, Edit2, Save, X } from 'lucide-react';
 import ActionButton from '../../components/ActionButton';
 import StatCard from '../../components/StatCard';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import { useNotification } from '../../context/NotificationContext';
 import { format, subDays } from 'date-fns';
-
-interface SalesProfile {
-  id: number;
-  name: string;
-  email: string;
-  phone: string;
-  location: string;
-  joinDate: string;
-  performance: {
-    leadsConverted: number;
-    conversionRate: number;
-    revenue: number;
-    avgDealSize: number;
-    clientSatisfaction: number;
-  };
-  recentActivity: Array<{
-    id: number;
-    type: 'conversion' | 'call' | 'meeting' | 'achievement';
-    description: string;
-    date: string;
-    value?: string;
-  }>;
-}
 
 const SalesProfile: React.FC = () => {
   const { authState } = useAuth();
@@ -39,15 +16,15 @@ const SalesProfile: React.FC = () => {
   // Calculate actual performance from leads data
   const myLeads = leads.filter(lead => lead.assignedTo === authState.user?.id.toString());
   const convertedLeads = myLeads.filter(lead => lead.status === 'converted');
-  const totalRevenue = convertedLeads.reduce((sum, lead) => sum + lead.price, 0);
+  const totalRevenue = convertedLeads.reduce((sum, lead) => sum + (lead.pricePaid || lead.price || 0), 0);
   const avgDealSize = convertedLeads.length > 0 ? totalRevenue / convertedLeads.length : 0;
   const conversionRate = myLeads.length > 0 ? (convertedLeads.length / myLeads.length) * 100 : 0;
 
-  // Simplified sales profile data
-  const [profile, setProfile] = useState<SalesProfile>({
+  // Profile data with real metrics
+  const [profile, setProfile] = useState({
     id: 1,
-    name: authState.user?.name || 'Alex Sales',
-    email: authState.user?.email || 'alex@lead.com',
+    name: authState.user?.name || 'Sales Representative',
+    email: authState.user?.email || 'sales@lead.com',
     phone: '+1 (555) 123-4567',
     location: 'New York, NY',
     joinDate: '2023-01-15',
@@ -56,42 +33,8 @@ const SalesProfile: React.FC = () => {
       conversionRate: Math.round(conversionRate),
       revenue: totalRevenue,
       avgDealSize: Math.round(avgDealSize),
-      clientSatisfaction: 4.8
-    },
-    recentActivity: [
-      {
-        id: 1,
-        type: 'conversion',
-        description: 'Successfully closed deal with HealthTech App',
-        date: format(subDays(new Date(), 1), 'yyyy-MM-dd'),
-        value: '$8,900'
-      },
-      {
-        id: 2,
-        type: 'meeting',
-        description: 'Product demo with TechStartup completed',
-        date: format(subDays(new Date(), 2), 'yyyy-MM-dd')
-      },
-      {
-        id: 3,
-        type: 'call',
-        description: 'Follow-up call with Fintech Solutions',
-        date: format(subDays(new Date(), 3), 'yyyy-MM-dd')
-      },
-      {
-        id: 4,
-        type: 'conversion',
-        description: 'Converted Blockchain Dev lead',
-        date: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
-        value: '$22,000'
-      },
-      {
-        id: 5,
-        type: 'achievement',
-        description: 'Reached monthly target ahead of schedule',
-        date: format(subDays(new Date(), 7), 'yyyy-MM-dd')
-      }
-    ]
+      totalLeads: myLeads.length
+    }
   });
 
   const [editForm, setEditForm] = useState(profile);
@@ -107,7 +50,29 @@ const SalesProfile: React.FC = () => {
     setIsEditing(false);
   };
 
+  // Recent activity from actual leads
+  const recentActivity = myLeads
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 5)
+    .map((lead, index) => ({
+      id: index + 1,
+      type: lead.status === 'converted' ? 'conversion' : 
+            lead.status === 'contacted' ? 'call' : 
+            lead.status === 'qualified' ? 'qualification' : 'new-lead',
+      description: `${lead.status === 'converted' ? 'Successfully converted' : 
+                    lead.status === 'contacted' ? 'Contacted' : 
+                    lead.status === 'qualified' ? 'Qualified' : 'New lead assigned'}: ${lead.companyName || lead.domain}`,
+      date: format(new Date(lead.createdAt), 'yyyy-MM-dd'),
+      value: lead.status === 'converted' ? `$${lead.pricePaid || lead.price || 0}` : undefined
+    }));
+
   const performanceStats = [
+    {
+      title: 'Total Leads',
+      value: profile.performance.totalLeads,
+      icon: <User size={24} />,
+      color: 'blue'
+    },
     {
       title: 'Leads Converted',
       value: profile.performance.leadsConverted,
@@ -118,17 +83,11 @@ const SalesProfile: React.FC = () => {
       title: 'Conversion Rate',
       value: `${profile.performance.conversionRate}%`,
       icon: <TrendingUp size={24} />,
-      color: 'blue'
-    },
-    {
-      title: 'Revenue Generated',
-      value: `$${profile.performance.revenue.toLocaleString()}`,
-      icon: <TrendingUp size={24} />,
       color: 'purple'
     },
     {
-      title: 'Avg Deal Size',
-      value: `$${profile.performance.avgDealSize.toLocaleString()}`,
+      title: 'Total Revenue',
+      value: `$${profile.performance.revenue.toLocaleString()}`,
       icon: <TrendingUp size={24} />,
       color: 'yellow'
     }
@@ -140,12 +99,12 @@ const SalesProfile: React.FC = () => {
         return <TrendingUp className="text-green-600" size={16} />;
       case 'call':
         return <Phone className="text-blue-600" size={16} />;
-      case 'meeting':
+      case 'qualification':
         return <User className="text-purple-600" size={16} />;
-      case 'achievement':
-        return <Star className="text-yellow-600" size={16} />;
+      case 'new-lead':
+        return <User className="text-gray-600" size={16} />;
       default:
-        return <Clock className="text-gray-600" size={16} />;
+        return <User className="text-gray-600" size={16} />;
     }
   };
 
@@ -197,11 +156,6 @@ const SalesProfile: React.FC = () => {
                 <h3 className="text-xl font-semibold text-gray-800">{profile.name}</h3>
               )}
               <p className="text-gray-600">Sales Representative</p>
-              <div className="flex items-center justify-center gap-1 mt-2">
-                <Star className="text-yellow-500 fill-current" size={16} />
-                <span className="text-sm font-medium">{profile.performance.clientSatisfaction}/5.0</span>
-                <span className="text-xs text-gray-500">Client Rating</span>
-              </div>
             </div>
 
             <div className="space-y-4">
@@ -275,24 +229,32 @@ const SalesProfile: React.FC = () => {
           {/* Recent Activity */}
           <div className="bg-white rounded-xl shadow-md p-6">
             <h4 className="font-semibold text-gray-800 mb-4">Recent Activity</h4>
-            <div className="space-y-4">
-              {profile.recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                    {getActivityIcon(activity.type)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-800">{activity.description}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-sm text-gray-500">{format(new Date(activity.date), 'MMM dd, yyyy')}</p>
-                      {activity.value && (
-                        <span className="text-sm font-medium text-green-600">{activity.value}</span>
-                      )}
+            {recentActivity.length > 0 ? (
+              <div className="space-y-4">
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                      {getActivityIcon(activity.type)}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-800">{activity.description}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-sm text-gray-500">{format(new Date(activity.date), 'MMM dd, yyyy')}</p>
+                        {activity.value && (
+                          <span className="text-sm font-medium text-green-600">{activity.value}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <User className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No recent activity</h3>
+                <p className="text-gray-500">Your lead activities will appear here.</p>
+              </div>
+            )}
           </div>
 
           {/* Performance Insights */}
@@ -307,7 +269,8 @@ const SalesProfile: React.FC = () => {
                 <p className="text-blue-700">
                   {profile.performance.conversionRate >= 20 ? 'Excellent conversion rate!' : 
                    profile.performance.conversionRate >= 15 ? 'Good conversion performance' :
-                   profile.performance.conversionRate >= 10 ? 'Average performance' : 'Room for improvement'}
+                   profile.performance.conversionRate >= 10 ? 'Average performance' : 
+                   profile.performance.totalLeads > 0 ? 'Room for improvement' : 'No leads assigned yet'}
                 </p>
               </div>
               
@@ -317,7 +280,10 @@ const SalesProfile: React.FC = () => {
                   <h4 className="font-medium text-green-800">Revenue Impact</h4>
                 </div>
                 <p className="text-green-700">
-                  Generated ${profile.performance.revenue.toLocaleString()} in total revenue with {profile.performance.leadsConverted} conversions
+                  {profile.performance.revenue > 0 ? 
+                    `Generated $${profile.performance.revenue.toLocaleString()} in total revenue with ${profile.performance.leadsConverted} conversions` :
+                    'No revenue generated yet'
+                  }
                 </p>
               </div>
             </div>
