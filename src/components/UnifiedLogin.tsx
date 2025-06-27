@@ -1,32 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, Eye, EyeOff, AlertTriangle, Wifi, WifiOff, Users, Settings } from 'lucide-react';
-import apiService from '../services/api';
+import { Shield, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 
 const UnifiedLogin: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [apiConnected, setApiConnected] = useState<boolean | null>(null);
   const { authState, login } = useAuth();
-
-  useEffect(() => {
-    // Test API connection on component mount
-    const testConnection = async () => {
-      const connected = await apiService.testConnection();
-      setApiConnected(connected);
-    };
-    
-    testConnection();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!apiConnected) {
-      return;
-    }
-    
     await login(email, password);
   };
 
@@ -41,15 +24,9 @@ const UnifiedLogin: React.FC = () => {
       return 'Your account has been disabled. Please contact your system administrator.';
     }
     if (error.includes('Unable to connect to server')) {
-      return 'Cannot connect to the backend server. Please ensure the backend is running on http://localhost:8000';
+      return 'Unable to connect to the server. Please try again later or contact support.';
     }
     return error;
-  };
-
-  const retryConnection = async () => {
-    setApiConnected(null);
-    const connected = await apiService.testConnection();
-    setApiConnected(connected);
   };
 
   return (
@@ -61,40 +38,9 @@ const UnifiedLogin: React.FC = () => {
             <div className="mb-4 inline-flex items-center justify-center w-20 h-20 bg-white/20 rounded-full backdrop-blur-sm">
               <Shield size={40} className="text-white" />
             </div>
-            <h1 className="text-3xl font-bold mb-2">ZownLead CRM</h1>
+            <h1 className="text-3xl font-bold mb-2">Zayn Lead Management System</h1>
             <p className="text-indigo-100 font-medium">Welcome Back</p>
             <p className="text-indigo-200 text-sm mt-1">Sign in to your account</p>
-          </div>
-        </div>
-
-        {/* API Connection Status */}
-        <div className="px-8 pt-6">
-          <div className={`flex items-center gap-2 p-3 rounded-lg ${
-            apiConnected === null ? 'bg-yellow-50 border border-yellow-200' :
-            apiConnected ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
-          }`}>
-            {apiConnected === null ? (
-              <>
-                <div className="w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-yellow-700 text-sm">Testing connection...</span>
-              </>
-            ) : apiConnected ? (
-              <>
-                <Wifi size={16} className="text-green-600" />
-                <span className="text-green-700 text-sm">Backend connected</span>
-              </>
-            ) : (
-              <>
-                <WifiOff size={16} className="text-red-600" />
-                <span className="text-red-700 text-sm">Backend disconnected</span>
-                <button
-                  onClick={retryConnection}
-                  className="ml-auto text-red-600 hover:text-red-800 text-sm underline"
-                >
-                  Retry
-                </button>
-              </>
-            )}
           </div>
         </div>
         
@@ -106,15 +52,6 @@ const UnifiedLogin: React.FC = () => {
                 <p className="text-red-800 text-sm font-medium">Authentication Failed</p>
                 <p className="text-red-700 text-sm mt-1">{getErrorMessage(authState.error)}</p>
               </div>
-            </div>
-          )}
-
-          {!apiConnected && apiConnected !== null && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800 text-sm font-medium">Backend Server Not Available</p>
-              <p className="text-red-700 text-sm mt-1">
-                Please start the backend server by running: <code className="bg-red-100 px-1 rounded">npm run backend</code>
-              </p>
             </div>
           )}
           
@@ -131,7 +68,7 @@ const UnifiedLogin: React.FC = () => {
               placeholder="Enter your email"
               required
               autoComplete="email"
-              disabled={authState.loading || !apiConnected}
+              disabled={authState.loading}
             />
           </div>
           
@@ -149,13 +86,13 @@ const UnifiedLogin: React.FC = () => {
                 placeholder="Enter your password"
                 required
                 autoComplete="current-password"
-                disabled={authState.loading || !apiConnected}
+                disabled={authState.loading}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                disabled={authState.loading || !apiConnected}
+                disabled={authState.loading}
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -164,7 +101,7 @@ const UnifiedLogin: React.FC = () => {
           
           <button
             type="submit"
-            disabled={authState.loading || !apiConnected}
+            disabled={authState.loading}
             className="w-full bg-gradient-to-r from-indigo-600 to-purple-700 text-white py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition duration-200 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
           >
             {authState.loading ? (
@@ -200,29 +137,6 @@ const UnifiedLogin: React.FC = () => {
             </div>
           </div>
         </form>
-        
-        <div className="bg-gray-50 px-8 py-4 border-t">
-          <div className="text-center">
-            <p className="text-xs text-gray-600 mb-3">Access Levels</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white rounded-lg p-3 border text-xs">
-                <div className="flex items-center gap-2 mb-1">
-                  <Settings size={14} className="text-indigo-600" />
-                  <span className="font-semibold text-gray-700">Admin Access</span>
-                </div>
-                <p className="text-gray-600">Full system management</p>
-              </div>
-              <div className="bg-white rounded-lg p-3 border text-xs">
-                <div className="flex items-center gap-2 mb-1">
-                  <Users size={14} className="text-green-600" />
-                  <span className="font-semibold text-gray-700">Sales Access</span>
-                </div>
-                <p className="text-gray-600">Lead management</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500 mt-3">Contact your administrator for access</p>
-          </div>
-        </div>
       </div>
     </div>
   );
