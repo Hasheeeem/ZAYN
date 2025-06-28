@@ -24,17 +24,26 @@ const SalesLayout: React.FC = () => {
   // Update active page based on current route
   useEffect(() => {
     const path = location.pathname;
-    if (path.startsWith('/sales/')) {
-      const page = path.substring(7) || 'dashboard';
-      setActivePage(page);
-    } else if (path === '/') {
+    if (path === '/' || path === '/sales' || path === '/sales/' || path === '/sales/dashboard') {
       setActivePage('dashboard');
+    } else if (path === '/sales/leads') {
+      setActivePage('leads');
+    } else if (path === '/sales/calendar') {
+      setActivePage('calendar');
+    } else if (path === '/sales/targets') {
+      setActivePage('targets');
+    } else if (path === '/sales/profile') {
+      setActivePage('profile');
     }
   }, [location.pathname]);
   
   const handleNavigate = (page: string) => {
     setActivePage(page);
-    navigate(`/sales/${page === 'dashboard' ? '' : page}`);
+    if (page === 'dashboard') {
+      navigate('/sales/dashboard');
+    } else {
+      navigate(`/sales/${page}`);
+    }
   };
   
   const getPageTitle = () => {
@@ -75,6 +84,7 @@ const SalesLayout: React.FC = () => {
           
           <main className="p-8 min-h-[calc(100vh-7rem)] overflow-y-auto">
             <Routes>
+              <Route path="/" element={<SalesDashboard />} />
               <Route path="/sales" element={<SalesDashboard />} />
               <Route path="/sales/" element={<SalesDashboard />} />
               <Route path="/sales/dashboard" element={<SalesDashboard />} />

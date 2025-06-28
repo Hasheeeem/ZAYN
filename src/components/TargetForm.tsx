@@ -25,21 +25,51 @@ const TargetForm: React.FC<TargetFormProps> = ({
 }) => {
   const { showNotification } = useNotification();
   const [targets, setTargets] = useState({
-    salesTarget: currentTargets?.salesTarget || 0,
-    invoiceTarget: currentTargets?.invoiceTarget || 0
+    salesTarget: currentTargets?.salesTarget?.toString() || '0',
+    invoiceTarget: currentTargets?.invoiceTarget?.toString() || '0'
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  // Function to handle numeric input with decimals
+  const handleNumericInput = (value: string): string => {
+    // Remove any non-numeric characters except decimal point
+    let cleanValue = value.replace(/[^0-9.]/g, '');
+    
+    // Ensure only one decimal point
+    const parts = cleanValue.split('.');
+    if (parts.length > 2) {
+      cleanValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Limit to 2 decimal places
+    if (parts.length === 2 && parts[1].length > 2) {
+      cleanValue = parts[0] + '.' + parts[1].substring(0, 2);
+    }
+    
+    return cleanValue;
+  };
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (targets.salesTarget < 0) {
+    const salesValue = parseFloat(targets.salesTarget) || 0;
+    const invoiceValue = parseFloat(targets.invoiceTarget) || 0;
+
+    if (salesValue < 0) {
       newErrors.salesTarget = 'Sales target must be a positive number';
     }
 
-    if (targets.invoiceTarget < 0) {
+    if (invoiceValue < 0) {
       newErrors.invoiceTarget = 'Invoice target must be a positive number';
+    }
+
+    if (targets.salesTarget && isNaN(salesValue)) {
+      newErrors.salesTarget = 'Please enter a valid number';
+    }
+
+    if (targets.invoiceTarget && isNaN(invoiceValue)) {
+      newErrors.invoiceTarget = 'Please enter a valid number';
     }
 
     setErrors(newErrors);
@@ -56,7 +86,10 @@ const TargetForm: React.FC<TargetFormProps> = ({
 
     setSaving(true);
     try {
-      await onSave(targets);
+      const salesTarget = parseFloat(targets.salesTarget) || 0;
+      const invoiceTarget = parseFloat(targets.invoiceTarget) || 0;
+      
+      await onSave({ salesTarget, invoiceTarget });
     } catch (error) {
       console.error('Error saving targets:', error);
     } finally {
@@ -65,12 +98,34 @@ const TargetForm: React.FC<TargetFormProps> = ({
   };
 
   const handleChange = (field: 'salesTarget' | 'invoiceTarget', value: string) => {
-    const numericValue = parseFloat(value) || 0;
-    setTargets(prev => ({ ...prev, [field]: numericValue }));
+    const cleanValue = handleNumericInput(value);
+    setTargets(prev => ({ ...prev, [field]: cleanValue }));
     
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow: backspace, delete, tab, escape, enter, decimal point
+    if ([8, 9, 27, 13, 46, 110, 190].indexOf(e.keyCode) !== -1 ||
+        // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+        (e.keyCode === 65 && e.ctrlKey === true) ||
+        (e.keyCode === 67 && e.ctrlKey === true) ||
+        (e.keyCode === 86 && e.ctrlKey === true) ||
+        (e.keyCode === 88 && e.ctrlKey === true)) {
+      return;
+    }
+    // Ensure that it is a number and stop the keypress
+    if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+      e.preventDefault();
+    }
+  };
+
+  const formatDisplayValue = (value: string): string => {
+    if (!value || value === '0') return '0';
+    const numValue = parseFloat(value);
+    return isNaN(numValue) ? value : numValue.toLocaleString();
   };
 
   return (
@@ -95,11 +150,10 @@ const TargetForm: React.FC<TargetFormProps> = ({
             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
             <input
               id="salesTarget"
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
               value={targets.salesTarget}
               onChange={(e) => handleChange('salesTarget', e.target.value)}
+              onKeyDown={handleKeyPress}
               className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
                 errors.salesTarget ? 'border-red-500' : 'border-gray-300'
               } focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
@@ -126,11 +180,10 @@ const TargetForm: React.FC<TargetFormProps> = ({
             <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
             <input
               id="invoiceTarget"
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
               value={targets.invoiceTarget}
               onChange={(e) => handleChange('invoiceTarget', e.target.value)}
+              onKeyDown={handleKeyPress}
               className={`w-full pl-8 pr-4 py-3 rounded-lg border ${
                 errors.invoiceTarget ? 'border-red-500' : 'border-gray-300'
               } focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500`}
@@ -153,13 +206,13 @@ const TargetForm: React.FC<TargetFormProps> = ({
           <div>
             <span className="text-gray-600">Sales Target:</span>
             <span className="font-semibold text-green-600 ml-2">
-              ${targets.salesTarget.toLocaleString()}
+              ${formatDisplayValue(targets.salesTarget)}
             </span>
           </div>
           <div>
             <span className="text-gray-600">Invoice Target:</span>
             <span className="font-semibold text-blue-600 ml-2">
-              ${targets.invoiceTarget.toLocaleString()}
+              ${formatDisplayValue(targets.invoiceTarget)}
             </span>
           </div>
         </div>

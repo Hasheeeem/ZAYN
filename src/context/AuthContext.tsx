@@ -5,7 +5,7 @@ import apiService from '../services/api';
 const defaultAuthState: AuthState = {
   isAuthenticated: false,
   user: null,
-  loading: false,
+  loading: true, // Start with loading true
   error: null
 };
 
@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else {
             // Token is invalid, clear it
             apiService.clearToken();
-            setAuthState(prev => ({ ...prev, loading: false }));
+            setAuthState(prev => ({ ...prev, loading: false, isAuthenticated: false, user: null }));
           }
         })
         .catch((error) => {
@@ -58,9 +58,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setAuthState(prev => ({ 
             ...prev, 
             loading: false,
+            isAuthenticated: false,
+            user: null,
             error: error.message?.includes('403') ? 'Access denied' : null
           }));
         });
+    } else {
+      // No token found, set loading to false
+      setAuthState(prev => ({ ...prev, loading: false }));
     }
   }, []);
 

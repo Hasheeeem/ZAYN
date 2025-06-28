@@ -18,7 +18,6 @@ const AdminLayout: React.FC = () => {
   useEffect(() => {
     if (location.pathname === '/' || location.pathname === '') {
       navigate('/dashboard', { replace: true });
-      setActivePage('dashboard');
     }
   }, [location.pathname, navigate]);
 
@@ -40,7 +39,11 @@ const AdminLayout: React.FC = () => {
   
   const handleNavigate = (page: string) => {
     setActivePage(page);
-    navigate(`/${page === 'dashboard' ? '' : page}`);
+    if (page === 'dashboard') {
+      navigate('/dashboard');
+    } else {
+      navigate(`/${page}`);
+    }
   };
   
   const getPageTitle = () => {
